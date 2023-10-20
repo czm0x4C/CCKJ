@@ -189,6 +189,12 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                             memcpy((char *)deviceAttributeInfo.UDP_serverIP, &RxFrameData[i+4],FrameLen);
                                             break;
                                         }
+                                        case CMD_DEVICE_ID:
+                                        {
+                                            memset(deviceAttributeInfo.deviceID,0,sizeof(deviceAttributeInfo.deviceID));
+                                            memcpy((char *)deviceAttributeInfo.deviceID, &RxFrameData[i+4],FrameLen);
+                                            break;
+                                        }
                                         case CMD_SERVER_PORT:
                                         {
                                             char temp[10];
@@ -210,8 +216,9 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                         }
                                         case CMD_SET_PARA_END:
                                         {
-                                            writeWifiInfo(wifiName,wifiPassword,(unsigned char *)deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort,(unsigned char *)"ok");
-                                            setCameraPara();
+                                            // writeWifiInfo(wifiName,wifiPassword,(unsigned char *)deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort,(unsigned char *)"ok");
+                                            // setCameraPara();
+                                            writeDeviceInfo();
                                             espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:数据写入完成,2s后重启");
                                             vTaskDelay(2000/portTICK_PERIOD_MS);
                                             esp_restart();/* 重启设备 */

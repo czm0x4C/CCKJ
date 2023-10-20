@@ -718,6 +718,8 @@ void Widget::on_writeDevicePushButton_clicked()
     QByteArray serverIp = ui->serverIpLineEdit->text().toLocal8Bit();
     QByteArray serverPort = ui->serverPortLineEdit->text().toLocal8Bit();
 
+    QByteArray deviceId = ui->deviceIdSetLineEdit->text().toLocal8Bit();
+
     unsigned short imageSize = 0;
     unsigned short imageQuality = 0;
 
@@ -745,14 +747,19 @@ void Widget::on_writeDevicePushButton_clicked()
     if(wifiPassWord.isEmpty()){emit appLogMessage_signal("WIFI密码为空，请检查");return;}
     if(serverIp.isEmpty()){emit appLogMessage_signal("服务器地址为空，请检查");return;}
     if(serverPort.isEmpty()){emit appLogMessage_signal("服务器端口为空，请检查");return;}
+    if(deviceId.isEmpty()){emit appLogMessage_signal("设备ID为空，请检查");return;}
 
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CDM_WIFI_NAME,wifiName));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_WIFI_PASSWORD,wifiPassWord));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_IP,serverIp));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT,serverPort));
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_DEVICE_ID,deviceId));
+
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));
+
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));/* 配置信息发送完毕 */
+
 
     emit appLogMessage_signal("配置写入完成，设备重启");
 }

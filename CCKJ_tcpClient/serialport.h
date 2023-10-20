@@ -61,7 +61,8 @@ public:
                     CMD_PICTURE_SIZE,
                     CMD_PICTURE_QUALITY,
                     CMD_SET_PARA_END,
-                    CMD_LOG_MESSAGE
+                    CMD_LOG_MESSAGE,
+                    CMD_DEVICE_ID
     };
 
     QSerialPort *SerialPort;

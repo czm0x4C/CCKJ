@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>637</width>
-    <height>617</height>
+    <height>641</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,11 +22,11 @@
      <x>0</x>
      <y>0</y>
      <width>631</width>
-     <height>511</height>
+     <height>531</height>
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>1</number>
    </property>
    <widget class="QWidget" name="widget">
     <attribute name="title">
@@ -36,9 +36,9 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>80</y>
+       <y>110</y>
        <width>611</width>
-       <height>80</height>
+       <height>71</height>
       </rect>
      </property>
      <property name="title">
@@ -145,7 +145,7 @@
        <x>10</x>
        <y>10</y>
        <width>611</width>
-       <height>71</height>
+       <height>91</height>
       </rect>
      </property>
      <property name="title">
@@ -154,59 +154,34 @@
      <widget class="QPushButton" name="ConnectTCPtButton">
       <property name="geometry">
        <rect>
-        <x>430</x>
-        <y>20</y>
-        <width>81</width>
-        <height>40</height>
+        <x>200</x>
+        <y>30</y>
+        <width>91</width>
+        <height>51</height>
        </rect>
       </property>
       <property name="text">
        <string>连接服务器</string>
       </property>
      </widget>
-     <widget class="QLineEdit" name="TCP_Server_Port_LineEdit">
-      <property name="geometry">
-       <rect>
-        <x>310</x>
-        <y>30</y>
-        <width>100</width>
-        <height>20</height>
-       </rect>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>100</width>
-        <height>20</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>20</height>
-       </size>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
      <widget class="QPushButton" name="CloseTCPButton">
       <property name="geometry">
        <rect>
-        <x>520</x>
-        <y>20</y>
-        <width>81</width>
-        <height>41</height>
+        <x>300</x>
+        <y>30</y>
+        <width>91</width>
+        <height>51</height>
        </rect>
       </property>
       <property name="text">
        <string>关闭连接</string>
       </property>
      </widget>
-     <widget class="QLineEdit" name="TCP_Server_IP_LineEdit">
+     <widget class="QLabel" name="label_3">
       <property name="geometry">
        <rect>
-        <x>100</x>
-        <y>30</y>
+        <x>10</x>
+        <y>60</y>
         <width>100</width>
         <height>20</height>
        </rect>
@@ -221,6 +196,44 @@
        <size>
         <width>100</width>
         <height>20</height>
+       </size>
+      </property>
+      <property name="text">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;服务器端口：&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+     </widget>
+     <widget class="QLineEdit" name="TCP_Server_IP_LineEdit">
+      <property name="geometry">
+       <rect>
+        <x>90</x>
+        <y>30</y>
+        <width>100</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+     <widget class="QLineEdit" name="TCP_Server_Port_LineEdit">
+      <property name="geometry">
+       <rect>
+        <x>90</x>
+        <y>60</y>
+        <width>100</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>100</width>
+        <height>21</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>100</width>
+        <height>21</height>
        </size>
       </property>
       <property name="text">
@@ -252,29 +265,40 @@
        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;服务器地址：&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
-     <widget class="QLabel" name="label_3">
+     <widget class="QPushButton" name="CloseTCPButton_2">
       <property name="geometry">
        <rect>
-        <x>220</x>
+        <x>510</x>
         <y>30</y>
-        <width>100</width>
-        <height>20</height>
+        <width>91</width>
+        <height>51</height>
        </rect>
       </property>
-      <property name="minimumSize">
-       <size>
-        <width>100</width>
-        <height>20</height>
-       </size>
+      <property name="text">
+       <string>搜索设备</string>
       </property>
-      <property name="maximumSize">
-       <size>
-        <width>100</width>
-        <height>20</height>
-       </size>
+     </widget>
+     <widget class="myComboBox" name="deviceComboBox_2">
+      <property name="geometry">
+       <rect>
+        <x>400</x>
+        <y>30</y>
+        <width>101</width>
+        <height>22</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_10">
+      <property name="geometry">
+       <rect>
+        <x>400</x>
+        <y>60</y>
+        <width>101</width>
+        <height>21</height>
+       </rect>
       </property>
       <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;服务器端口：&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>未连接设备</string>
       </property>
      </widget>
     </widget>
@@ -282,7 +306,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>170</y>
+       <y>190</y>
        <width>191</width>
        <height>301</height>
       </rect>
@@ -295,7 +319,7 @@
      <property name="geometry">
       <rect>
        <x>220</x>
-       <y>170</y>
+       <y>190</y>
        <width>400</width>
        <height>300</height>
       </rect>
@@ -325,7 +349,7 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>80</y>
+        <y>60</y>
         <width>71</width>
         <height>16</height>
        </rect>
@@ -370,7 +394,7 @@
      <widget class="QLabel" name="label_5">
       <property name="geometry">
        <rect>
-        <x>210</x>
+        <x>200</x>
         <y>30</y>
         <width>71</width>
         <height>16</height>
@@ -384,7 +408,7 @@
       <property name="geometry">
        <rect>
         <x>80</x>
-        <y>80</y>
+        <y>60</y>
         <width>113</width>
         <height>21</height>
        </rect>
@@ -407,7 +431,7 @@
       <property name="geometry">
        <rect>
         <x>280</x>
-        <y>80</y>
+        <y>60</y>
         <width>113</width>
         <height>21</height>
        </rect>
@@ -439,8 +463,8 @@
      <widget class="QLabel" name="label_7">
       <property name="geometry">
        <rect>
-        <x>210</x>
-        <y>80</y>
+        <x>200</x>
+        <y>60</y>
         <width>71</width>
         <height>16</height>
        </rect>
@@ -453,7 +477,7 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>130</y>
+        <y>120</y>
         <width>71</width>
         <height>16</height>
        </rect>
@@ -466,7 +490,7 @@
       <property name="geometry">
        <rect>
         <x>210</x>
-        <y>130</y>
+        <y>120</y>
         <width>71</width>
         <height>16</height>
        </rect>
@@ -479,7 +503,7 @@
       <property name="geometry">
        <rect>
         <x>80</x>
-        <y>130</y>
+        <y>120</y>
         <width>111</width>
         <height>22</height>
        </rect>
@@ -489,9 +513,55 @@
       <property name="geometry">
        <rect>
         <x>280</x>
-        <y>130</y>
+        <y>120</y>
         <width>111</width>
         <height>22</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_11">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>90</y>
+        <width>71</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>设备ID:</string>
+      </property>
+     </widget>
+     <widget class="QLineEdit" name="deviceIdSetLineEdit">
+      <property name="geometry">
+       <rect>
+        <x>80</x>
+        <y>90</y>
+        <width>113</width>
+        <height>21</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_12">
+      <property name="geometry">
+       <rect>
+        <x>200</x>
+        <y>90</y>
+        <width>71</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>定时时长:</string>
+      </property>
+     </widget>
+     <widget class="QLineEdit" name="deviceIdSetLineEdit_2">
+      <property name="geometry">
+       <rect>
+        <x>280</x>
+        <y>90</y>
+        <width>113</width>
+        <height>21</height>
        </rect>
       </property>
      </widget>
@@ -502,8 +572,8 @@
    <property name="geometry">
     <rect>
      <x>10</x>
-     <y>520</y>
-     <width>611</width>
+     <y>540</y>
+     <width>621</width>
      <height>91</height>
     </rect>
    </property>

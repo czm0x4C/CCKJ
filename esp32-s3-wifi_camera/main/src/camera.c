@@ -1,5 +1,6 @@
 #include "camera.h"
 #include "uart.h"
+#include "wifiConnect.h"
 
 #define UDP_SEND_MAX_LEN ( 60 * 1024 ) /* 设置UDP一包发送的最大数量 */
 
@@ -40,24 +41,24 @@ enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
         CLIENT_PICTURE_FILE_NAME,
         PICTURE_ERROR};
 
-// //第一版硬件
-// #define CAM_PIN_PWDN    (45)
-// #define CAM_PIN_RESET   (48) //software reset will be performed
-// #define CAM_PIN_XCLK    (47)
-// #define CAM_PIN_SIOD    (18)
-// #define CAM_PIN_SIOC    ( 8)
+//第一版硬件
+#define CAM_PIN_PWDN    (45)
+#define CAM_PIN_RESET   (48) //software reset will be performed
+#define CAM_PIN_XCLK    (47)
+#define CAM_PIN_SIOD    (18)
+#define CAM_PIN_SIOC    ( 8)
 
-// #define CAM_PIN_D7      (12)
-// #define CAM_PIN_D6      (11)
-// #define CAM_PIN_D5      (10)
-// #define CAM_PIN_D4      ( 9)
-// #define CAM_PIN_D3      (46)
-// #define CAM_PIN_D2      ( 3)
-// #define CAM_PIN_D1      (20)
-// #define CAM_PIN_D0      (19)
-// #define CAM_PIN_VSYNC   (13)
-// #define CAM_PIN_HREF    (21)
-// #define CAM_PIN_PCLK    (14)
+#define CAM_PIN_D7      (12)
+#define CAM_PIN_D6      (11)
+#define CAM_PIN_D5      (10)
+#define CAM_PIN_D4      ( 9)
+#define CAM_PIN_D3      (46)
+#define CAM_PIN_D2      ( 3)
+#define CAM_PIN_D1      (20)
+#define CAM_PIN_D0      (19)
+#define CAM_PIN_VSYNC   (13)
+#define CAM_PIN_HREF    (21)
+#define CAM_PIN_PCLK    (14)
 
 // //第二版硬件
 // #define CAM_PIN_PWDN    (3)    //3
@@ -77,24 +78,24 @@ enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
 // #define CAM_PIN_VSYNC   (20)    //20
 // #define CAM_PIN_HREF    (46)    //46
 // #define CAM_PIN_PCLK    (13)    //13
-//CCKJ
-#define CAM_PIN_PWDN    (38)    //3
-#define CAM_PIN_RESET   (40) //19
-#define CAM_PIN_XCLK    (48)    //10
-#define CAM_PIN_SIOD    (42)
-#define CAM_PIN_SIOC    (41)
+// //CCKJ
+// #define CAM_PIN_PWDN    (38)    //3
+// #define CAM_PIN_RESET   (40) //19
+// #define CAM_PIN_XCLK    (48)    //10
+// #define CAM_PIN_SIOD    (42)
+// #define CAM_PIN_SIOC    (41)
 
-#define CAM_PIN_D7      (45)    //9
-#define CAM_PIN_D6      (47)
-#define CAM_PIN_D5      (21)    //12
-#define CAM_PIN_D4      (13)    //14
-#define CAM_PIN_D3      (11)    //47
-#define CAM_PIN_D2      (9)   //pwdn 45
-#define CAM_PIN_D1      (10)    //rest 48
-#define CAM_PIN_D0      (12)    //21
-#define CAM_PIN_VSYNC   (39)    //20
-#define CAM_PIN_HREF    (0)    //46
-#define CAM_PIN_PCLK    (14)    //13
+// #define CAM_PIN_D7      (45)    //9
+// #define CAM_PIN_D6      (47)
+// #define CAM_PIN_D5      (21)    //12
+// #define CAM_PIN_D4      (13)    //14
+// #define CAM_PIN_D3      (11)    //47
+// #define CAM_PIN_D2      (9)   //pwdn 45
+// #define CAM_PIN_D1      (10)    //rest 48
+// #define CAM_PIN_D0      (12)    //21
+// #define CAM_PIN_VSYNC   (39)    //20
+// #define CAM_PIN_HREF    (0)    //46
+// #define CAM_PIN_PCLK    (14)    //13
 
 
 static const char *camera = "camera";
@@ -387,6 +388,26 @@ void getDeviceInfo(void)
     deviceAttributeInfo.jpegQuality = camera_config.jpeg_quality;
 }
 
+void writeDeviceInfo(void)
+{
+    writeWifiInfo(wifiName,wifiPassword,(unsigned char *)deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort,(unsigned char *)"ok");
+
+    esp_err_t err = nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle);
+    err = nvs_set_str(nvsHandle,"deviceID",deviceAttributeInfo.deviceID);/* 写入设备ID */
+    if(err==ESP_OK)
+    {
+        memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+        sprintf(logMessageBuffer,"ESP:设备DI = %s",deviceAttributeInfo.deviceID);
+        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+    }
+    else
+    {
+        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"设备ID设置错误!");
+    }  
+
+    setCameraPara();
+}
+
 void setCameraPara(void)
 {
     ESP_ERROR_CHECK(nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle));
@@ -405,8 +426,7 @@ void setCameraPara(void)
 void camera_task(void *pvParameters)
 {
     getDeviceInfo();
-
-                                                   
+  
     static unsigned int Time1 = 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ;
     static unsigned int Time2 = 0;
     static unsigned int Time3 = 0;

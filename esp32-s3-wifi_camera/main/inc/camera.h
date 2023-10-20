@@ -39,6 +39,7 @@ extern _deviceInfo deviceAttributeInfo;
 extern camera_config_t camera_config;
 extern char logMessageBuffer[260];
 void sntp_Init(void);/* 获取实时网络时间 */
+void writeDeviceInfo(void);
 void cameraSetConfig(void);
 void setCameraPara(void);
 void appInit(void);
