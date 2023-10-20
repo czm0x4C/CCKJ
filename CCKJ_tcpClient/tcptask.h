@@ -1,0 +1,65 @@
+#ifndef TCPTASK_H
+#define TCPTASK_H
+
+#include <QObject>
+#include <QTcpSocket>
+#include <QApplication>
+
+
+
+class tcpTask : public QObject
+{
+    Q_OBJECT
+public:
+    tcpTask();
+
+    void startTcpConnect(QString tcpServerIp,QString tcpServerPort);
+
+    void sendTcpData(QByteArray data);
+
+    void setSaveDateFileName(QString date);
+
+    QByteArray uIntToQbyteArray(unsigned int uIntData);
+
+    unsigned int qbyteArrayToUint(QByteArray dataBuffer);
+
+    enum picDownloadState{OK = 0,FAIL,PICTURE_EMPTY};
+
+signals:
+    void tcpConnected_signal();
+
+    void tcpDisconnected_signal();
+
+    void pictureData_signal(QByteArray data);
+
+    void pictureDownload_signal(picDownloadState state);
+
+    void takePictureDone_signal();
+
+    void tcpServerCacheClearDone_signal();
+
+    void appLogMessage_signal(QByteArray logMessage);
+
+    void pictureError_signal();
+
+private slots:
+
+    void readData();
+
+
+private:
+    QTcpSocket *TCP_Socket;/*创建网络对象*/
+
+    QString saveDateFileName;/* 用户选择要保存的日期，以其命名 */
+
+    enum messageCmd{HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
+          PICTURE_TO_CLIENT_NAME,PICTURE_TO_CLIENT_DATA,PICTURE_TO_CLIENT_END,
+          TAKE_PICTURE,SET_CAMERA_DEVICE_FLAG,CAMERA_TAKE_PICTURE,CAMERA_TAKE_PICTURE_DONE,
+         CLEAR_SERVER_CACHE,CLEAR_SERVER_CACHE_DONE,
+          CLIENT_PICTURE_FILE_NAME,
+        PICTURE_ERROR};
+
+    bool isCreated = false;
+};
+
+#endif // TCPTASK_H
