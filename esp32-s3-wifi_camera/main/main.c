@@ -5,15 +5,11 @@
 
 void app_main(void)
 {
-    // 关闭USB jtag 功能
-    gpio_reset_pin(19);
-    gpio_reset_pin(20);   
-
     key_Init();
     flashLed_Init();
     flashLedOff();  
 
-    uartInit();
+    usbSerialPort_Init();
 
     unsigned char connectState[10];/*  */
     char isConnectedFlag = 0;
@@ -29,7 +25,7 @@ void app_main(void)
     if(strcmp((char *)connectState,"fail") == 0)      /* 保存的wifi信息无效 */
     {
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:读取的WIFI信息无效");
-        xTaskCreate(uart_task, "uart_task", 1024 * 20, NULL, 2, NULL);
+        // xTaskCreate(uart_task, "uart_task", 1024 * 20, NULL, 2, NULL);
     }
     else if(strcmp((char *)connectState,"ok") == 0)   /* 保存的信息有效 */
     {

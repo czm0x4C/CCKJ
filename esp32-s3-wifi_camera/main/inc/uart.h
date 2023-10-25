@@ -17,8 +17,7 @@ enum frameCmd{
                 CMD_LOG_MESSAGE,
                 CMD_DEVICE_ID
                     };
-void uartInit(void);
-void uart_task(void *arg);
+void usbSerialPort_Init(void);
 unsigned char espSendLogMessage(unsigned char frameHead, unsigned char frameAddress, unsigned char frameID, char* data);
 
 #endif /* __CAMERA_H__ */

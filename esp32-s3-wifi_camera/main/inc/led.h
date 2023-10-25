@@ -3,9 +3,13 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 
-#define LED_NET     (1)
-#define LED_WORK    (2)
+#define LED_NET     (4)
+#define LED_WORK    (5)
 
+#define FLASH_CTR_IO        (42)
+#define FLASH_CTR_EXTRA_IO  (17)
+#define ELECTRIC_RELAY_IO   (18)
+#define KEY_IO              (16)
 
 void LED_Init(void);
 

@@ -42,23 +42,23 @@ enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
         PICTURE_ERROR};
 
 //第一版硬件
-#define CAM_PIN_PWDN    (45)
-#define CAM_PIN_RESET   (48) //software reset will be performed
-#define CAM_PIN_XCLK    (47)
-#define CAM_PIN_SIOD    (18)
-#define CAM_PIN_SIOC    ( 8)
+// #define CAM_PIN_PWDN    (45)
+// #define CAM_PIN_RESET   (48) //software reset will be performed
+// #define CAM_PIN_XCLK    (47)
+// #define CAM_PIN_SIOD    (18)
+// #define CAM_PIN_SIOC    ( 8)
 
-#define CAM_PIN_D7      (12)
-#define CAM_PIN_D6      (11)
-#define CAM_PIN_D5      (10)
-#define CAM_PIN_D4      ( 9)
-#define CAM_PIN_D3      (46)
-#define CAM_PIN_D2      ( 3)
-#define CAM_PIN_D1      (20)
-#define CAM_PIN_D0      (19)
-#define CAM_PIN_VSYNC   (13)
-#define CAM_PIN_HREF    (21)
-#define CAM_PIN_PCLK    (14)
+// #define CAM_PIN_D7      (12)
+// #define CAM_PIN_D6      (11)
+// #define CAM_PIN_D5      (10)
+// #define CAM_PIN_D4      ( 9)
+// #define CAM_PIN_D3      (46)
+// #define CAM_PIN_D2      ( 3)
+// #define CAM_PIN_D1      (20)
+// #define CAM_PIN_D0      (19)
+// #define CAM_PIN_VSYNC   (13)
+// #define CAM_PIN_HREF    (21)
+// #define CAM_PIN_PCLK    (14)
 
 // //第二版硬件
 // #define CAM_PIN_PWDN    (3)    //3
@@ -97,7 +97,24 @@ enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
 // #define CAM_PIN_HREF    (0)    //46
 // #define CAM_PIN_PCLK    (14)    //13
 
+//第二版硬件
+#define CAM_PIN_PWDN    (45)
+#define CAM_PIN_RESET   (39) //software reset will be performed
+#define CAM_PIN_XCLK    (21)
+#define CAM_PIN_SIOD    (41)
+#define CAM_PIN_SIOC    (40)
 
+#define CAM_PIN_D7      (47)
+#define CAM_PIN_D6      (14)
+#define CAM_PIN_D5      (13)
+#define CAM_PIN_D4      (11)
+#define CAM_PIN_D3      ( 9)
+#define CAM_PIN_D2      ( 3)
+#define CAM_PIN_D1      (46)
+#define CAM_PIN_D0      (10)
+#define CAM_PIN_VSYNC   (38)
+#define CAM_PIN_HREF    (48)
+#define CAM_PIN_PCLK    (12)
 static const char *camera = "camera";
 
 camera_config_t camera_config = {
@@ -124,7 +141,7 @@ camera_config_t camera_config = {
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
-    .pixel_format =  PIXFORMAT_YUV420,     //YUV422,GRAYSCALE,RGB565,JPEG PIXFORMAT_RGB565 PIXFORMAT_JPEG
+    .pixel_format =  PIXFORMAT_JPEG,     //YUV422,GRAYSCALE,RGB565,JPEG PIXFORMAT_RGB565 PIXFORMAT_JPEG
     .frame_size = FRAMESIZE_QSXGA,       //QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
     //FRAMESIZE_QVGA FRAMESIZE_QSXGA FRAMESIZE_UXGA
     .jpeg_quality = 10,                  //0-63, for OV series camera sensors, lower number means higher quality
@@ -439,16 +456,16 @@ void camera_task(void *pvParameters)
     esp_camera_deinit();                                /* 复位摄像头的硬件设置 */
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:重置摄像头");
 
-    // camera_config.pixel_format = PIXFORMAT_RGB565;//PIXFORMAT_YUV422 PIXFORMAT_RGB565 PIXFORMAT_JPEG
-    // camera_config.frame_size = FRAMESIZE_QVGA;
+    camera_config.pixel_format = PIXFORMAT_JPEG;//PIXFORMAT_YUV422 PIXFORMAT_RGB565 PIXFORMAT_JPEG
+    camera_config.frame_size = FRAMESIZE_UXGA;
 
-    // camera_config.jpeg_quality = 20;
+    camera_config.jpeg_quality = 10;
 
     if(CAM_PIN_PWDN != -1){
         esp_rom_gpio_pad_select_gpio(CAM_PIN_PWDN);
         gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);//  把这个GPIO作为输出
 
-        gpio_set_level(CAM_PIN_PWDN, 0);
+        gpio_set_level(CAM_PIN_PWDN, 1);
     }
 
     esp_err_t err = esp_camera_init(&camera_config);    /* 按照既定参数设置摄像头 */
@@ -492,7 +509,6 @@ void camera_task(void *pvParameters)
     while(1)
     {
         // ESP_LOGI(camera, "Taking picture...");
-
         if(true)/* 接收的图像数据正常 */
         {
             // use pic->buf to access the image
@@ -570,6 +586,8 @@ void camera_task(void *pvParameters)
                         tcpSendErr = send(sock,frameBuffer,5, 0);/* 发送帧头 */
                         if(tcpSendErr <= 0){espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:3 TCP发送错误");vTaskDelay(1000 / portTICK_PERIOD_MS);esp_restart();}
 
+                        flashLedOff();
+
                         break;
                     }
                 }
@@ -623,7 +641,7 @@ void camera_task(void *pvParameters)
             static char keyFlag = 0;
             if(keyValue(18) == 1 && keyFlag == 0)/* 断开检测到高电平 */
             {
-                takePictureFlag = 1;
+                // takePictureFlag = 1;
                 keyFlag = 1;
                 espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:外部高电平触发拍照");
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -673,6 +691,7 @@ void led_task(void *pvParameters)
 
 void tcpReceive_task(void *pvParameters)
 {
+    ESP_LOGI("camera","任务开始");
     while(1)
     {
         ESP_LOGI("camera","接收指令");
@@ -733,7 +752,6 @@ void appInit(void)
     if (err != 0) 
     {
         ESP_LOGE("TCP", "Socket unable to connect: errno %d", errno);
-        xTaskCreate(uart_task, "uart_task", 1024 * 20, NULL, 2, NULL); 
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:TCP连接失败,请重新配置或重启");
     }
     else
@@ -741,8 +759,6 @@ void appInit(void)
         ESP_LOGI("TCP", "Successfully connected");
         /* 此时已经连接上TCP服务器 */
         ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
-
-        xTaskCreate(uart_task, "uart_task", 1024 * 20, NULL, 2, NULL); 
 
         // /* 创建摄像头任务 */
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建摄像头任务");

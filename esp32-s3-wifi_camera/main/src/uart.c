@@ -6,20 +6,11 @@
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include "tinyusb.h"
+#include "tusb_cdc_acm.h"
 
 #include "wifiConnect.h"
 #include "camera.h"
-
-#define UART_PIN_TXD (43)
-#define UART_PIN_RXD (44)
-
-// #define UART_PIN_TXD (16)
-// #define UART_PIN_RXD (17)
-#define UART_PIN_RTS (-1)
-#define UART_PIN_CTS (-1)
-
-#define UART_PORT_NUM      (2)
-#define UART_BAUD_RATE     (115200)
 
 /******************************************************************************环形缓冲区**************************************************************************************/
 #define  RINGBUFF_LEN          (1024)     //定义最大接收字节数 4k
@@ -222,6 +213,7 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                             espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:数据写入完成,2s后重启");
                                             vTaskDelay(2000/portTICK_PERIOD_MS);
                                             esp_restart();/* 重启设备 */
+                                            ESP_LOGI("USB", "配置结束");
                                             break;
                                         }
                                         default:
@@ -270,49 +262,76 @@ unsigned char espSendLogMessage(unsigned char frameHead, unsigned char frameAddr
     frameData[frameDataLen + 4] = sumcheck;
     frameData[frameDataLen + 5] = addcheck;
     
-    return uart_write_bytes(UART_PORT_NUM,frameData,frameDataLen + 4 + 2);
+    tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, (unsigned char *)frameData, frameDataLen + 4 + 2);
+    tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
+
+    return frameDataLen + 4 + 2;
 }
 
-#define BUF_SIZE (1024)
 
-void uartInit(void)
+static const char *usb = "USB";
+static uint8_t buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
+
+void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
 {
-    /* Configure parameters of an UART driver,
-     * communication pins and install the driver */
-    uart_config_t uart_config = {
-        .baud_rate = UART_BAUD_RATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-    int intr_alloc_flags = 0;
+    /* initialization */
+    size_t rx_size = 0;
 
-#if CONFIG_UART_ISR_IN_IRAM
-    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-#endif
+    /* read */
+    esp_err_t ret = tinyusb_cdcacm_read(itf, buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
 
-    ESP_ERROR_CHECK(uart_driver_install(UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
-    ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_PIN_TXD, UART_PIN_RXD, UART_PIN_RTS, UART_PIN_CTS));
-}
-static const char *TAG = "UART";
-
-
-
-void uart_task(void *arg)
-{
-    // Configure a temporary buffer for the incoming data
-    uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
-
-    while (1) 
+    if (ret == ESP_OK) 
     {
-        // Read data from the UART
-        int len = uart_read_bytes(UART_PORT_NUM, data, (BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
-
         /* 解析数据 */
-        WriteBytes(&UART_RxRingBuffer,data,len);
-        FrameAnalysis(&UART_RxRingBuffer);
+        WriteBytes(&UART_RxRingBuffer,buf,rx_size);
+    } 
+    else 
+    {
+        ESP_LOGE(usb, "Read error");
     }
+
+}
+
+void usbCdcReceiveTask(void *pvParameters)
+{
+    ESP_LOGI("camera","任务开始");
+    while(1)
+    {
+        if(UART_RxRingBuffer.Lenght > 0)
+        {
+            FrameAnalysis(&UART_RxRingBuffer);
+        }
+        vTaskDelay(50/ portTICK_PERIOD_MS);
+    }
+}
+
+void usbSerialPort_Init(void)
+{
+    RingBuffer_Init(&UART_RxRingBuffer);
+
+    ESP_LOGI(usb, "USB initialization");
+    const tinyusb_config_t tusb_cfg = {
+        .device_descriptor = NULL,
+        .string_descriptor = NULL,
+        .external_phy = false,
+        .configuration_descriptor = NULL,
+    };
+
+    ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+
+    tinyusb_config_cdcacm_t acm_cfg = {
+        .usb_dev = TINYUSB_USBDEV_0,
+        .cdc_port = TINYUSB_CDC_ACM_0,
+        .rx_unread_buf_sz = 64,
+        .callback_rx = &tinyusb_cdc_rx_callback, // the first way to register a callback
+        .callback_rx_wanted_char = NULL,
+        .callback_line_state_changed = NULL,
+        .callback_line_coding_changed = NULL
+    };
+
+    ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
+
+    xTaskCreate(usbCdcReceiveTask, "usbCdcReceiveTask", 1024 * 20, NULL, 2, NULL);
+
+    ESP_LOGI(usb, "USB initialization DONE");
 }

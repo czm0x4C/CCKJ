@@ -31,36 +31,36 @@ void workLedOff(void)
 
 void key_Init(void)
 {
-    esp_rom_gpio_pad_select_gpio(18);
-    gpio_set_direction(18, GPIO_MODE_INPUT_OUTPUT);
-    gpio_set_pull_mode(18,GPIO_PULLUP_ONLY);
-    gpio_set_level(18, 0);
+    esp_rom_gpio_pad_select_gpio(KEY_IO);
+    gpio_set_direction(KEY_IO, GPIO_MODE_INPUT_OUTPUT);
+    gpio_set_pull_mode(KEY_IO,GPIO_PULLUP_ONLY);
+    gpio_set_level(KEY_IO, 0);
 }
 
 void setKeyValue(int value)
 {
-    gpio_set_level(18, value);
+    gpio_set_level(KEY_IO, value);
 }
 
 int keyValue(gpio_num_t gpio_num)
 {
-    return gpio_get_level(gpio_num);
+    return gpio_get_level(KEY_IO);
 }
 
 void flashLed_Init(void)
 {
-    esp_rom_gpio_pad_select_gpio(15);
-    gpio_set_direction(15, GPIO_MODE_OUTPUT);//  把这个GPIO作为输出
+    esp_rom_gpio_pad_select_gpio(FLASH_CTR_IO);
+    gpio_set_direction(FLASH_CTR_IO, GPIO_MODE_OUTPUT);//  把这个GPIO作为输出
 }
 
 void flashLedOn(void)
 {
-    gpio_set_level(15, 1);
+    gpio_set_level(FLASH_CTR_IO, 1);
 }
 
 void flashLedOff(void)
 {
-    gpio_set_level(15, 0);
+    gpio_set_level(FLASH_CTR_IO, 0);
 }
 
 
