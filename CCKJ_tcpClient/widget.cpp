@@ -256,6 +256,8 @@ void Widget::on_ConnectTCPtButton_clicked()
     connect(mTcpTask,&tcpTask::tcpServerCacheClearDone_signal,this,&Widget::on_tcpServerCacheClearDone,Qt::UniqueConnection);/* 子线程通知主线程服务器的缓存清除完毕 */
     connect(mTcpTask,&tcpTask::appLogMessage_signal,this,&Widget::on_showLogMessage,Qt::UniqueConnection);           /* 子线程输出log信息到主线程 */
     connect(mTcpTask,&tcpTask::pictureError_signal,this,&Widget::on_takePictureError,Qt::UniqueConnection);           /* 子线程发送拍摄图像错误信号到主线程 */
+    connect(mTcpTask,&tcpTask::onlineDeviceName_singal,this,&Widget::on_showDeviceId,Qt::UniqueConnection);
+
     connect(this,&Widget::tcpConnectToHost_signal,mTcpTask,&tcpTask::startTcpConnect,Qt::UniqueConnection);          /* 主线程通知子线程TCP连接服务器 */
     connect(this,&Widget::sendTcpData_signal,mTcpTask,&tcpTask::sendTcpData,Qt::UniqueConnection);                   /* 主线程通知子线程TCP发送数据 */
     emit tcpConnectToHost_signal(TCP_Server_IP,TCP_Server_Port);                                                         /* 建立TCP连接 */
@@ -769,5 +771,32 @@ void Widget::on_takePictureError()
     ui->takePictureButton->setDisabled(false);
     isTcpBackFinish = true;
     emit appLogMessage_signal("设备获取图像错误，超过最大重试次数或接收超时！");
+}
+
+
+void Widget::on_searchDeviceButton_clicked()
+{
+    if(ui->searchDeviceButton->text() == "搜索设备")
+    {
+        emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)GET_ONLINE_DEVICE));
+        ui->searchDeviceButton->setText("连接设备");
+    }
+    else if(ui->searchDeviceButton->text() == "连接设备")
+    {
+        emit sendTcpData_signal(setDataFrameFormat( 1+ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),
+                                                    (unsigned char)CLIENT_BIND_CAMERA,
+                                                    ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
+        ui->searchDeviceButton->setText("搜索设备");
+    }
+}
+
+void Widget::on_showDeviceId(QList<QByteArray> deviceIdList)
+{
+    ui->deviceOnlineComboBox->clear();
+    for(int i=0;i<deviceIdList.count();i++)
+    {
+        ui->deviceOnlineComboBox->addItem(deviceIdList.at(i));
+        qDebug()<< "设备ID" <<deviceIdList.at(i);
+    }
 }
 

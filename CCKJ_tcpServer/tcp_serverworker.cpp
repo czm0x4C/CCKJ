@@ -42,10 +42,14 @@ void TCP_ServerWorker::NewTcpConnect()
     SocketsInformation->socket = TCP_ServerSocket;
     SocketsInformation->ClientIP_String = ClientIP;
     SocketsInformation->ClientPort_String = ClientPort;
+    SocketsInformation->targetIP_string = "";
+    SocketsInformation->targetPort_string = "";
     SocketsInformation->ClientLocalUserID = 0;
     SocketsInformation->ClientFarUserID = 0;
     SocketsInformation->isActive = true;
     SocketsInformation->cameraDevice = false;
+    SocketsInformation->cameraDeviceId = "";
+    SocketsInformation->pcClient = true;
     SocketsInformation->clientState = 0;
     SocketsInformation->tcpDataLen = 0;
     SocketsInformation->recNextData = false;
@@ -209,8 +213,20 @@ void TCP_ServerWorker::CilentDataRead()
                 }
                 case SET_CAMERA_DEVICE_FLAG:/* 设置相机设备标志命令 */
                 {
-                    emit appLogMessage_signal("一个ESP设备加入");
-                    Tcp_ClientInformationList.at(clientIndex)->cameraDevice = true;
+                    QByteArray tempString = "IP为" + Tcp_ClientInformationList.at(clientIndex)->ClientIP_String.toLocal8Bit() +
+                             "端口为" + Tcp_ClientInformationList.at(clientIndex)->ClientPort_String.toLocal8Bit() +
+                             "的远程相机设备加入";/* 临时字符串变量 */
+                    emit appLogMessage_signal(tempString);
+                    Tcp_ClientInformationList.at(clientIndex)->cameraDevice = true;/* 标记该设备为摄像头设备 */
+                    break;
+                }
+                case SET_CAMERA_DEVICE_ID:/* 设置相机设备ID命令 */
+                {
+                    Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId =
+                            Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);/* 获取设备ID */
+                    qDebug() << "设备ID" << Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId;
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
+                                Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;
                 }
                 case DOWNLOAD_PICTURE:/* 客户端请求下载图片数据 */
@@ -293,7 +309,6 @@ void TCP_ServerWorker::CilentDataRead()
                 }
                 case PICTURE_ERROR:/* 得到ESP发送来的图像错误信息 */
                 {
-
                     for(int i=0;i<Tcp_ClientInformationList.size();i++)
                     {
                         if(Tcp_ClientInformationList.at(i)->cameraDevice != true)
@@ -302,7 +317,43 @@ void TCP_ServerWorker::CilentDataRead()
                             Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)PICTURE_ERROR));
                         }
                     }
-
+                    break;
+                }
+                case SET_PC_DEVICE_FLAG:/* 设置客户端标志命令 */
+                {
+                    QByteArray tempString = "IP为" + Tcp_ClientInformationList.at(clientIndex)->ClientIP_String.toLocal8Bit() +
+                             "端口为" + Tcp_ClientInformationList.at(clientIndex)->ClientPort_String.toLocal8Bit() +
+                             "的远程客户端设备加入";/* 临时字符串变量 */
+                    emit appLogMessage_signal(tempString);
+                    Tcp_ClientInformationList.at(clientIndex)->pcClient = true;/* 标记该设备为客户端设备 */
+                    break;
+                }
+                case GET_ONLINE_DEVICE:/* 获取在线设备的列表命令 */
+                {
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDevice == true)/* 如果是相机设备 */
+                        {
+                            TempSocket->write(setDataFrameFormat(1 + Tcp_ClientInformationList.at(i)->cameraDeviceId.size(),/* 数据总长 */
+                                               (unsigned char)ONLINE_CAMERA_DEVICE_ID_TO_CLIENT, /* 数据帧功能 */
+                                               Tcp_ClientInformationList.at(i)->cameraDeviceId));/* 发送设备ID */
+                        }
+                    }
+                    TempSocket->write(setCmdFrameFormat(1,(unsigned char)ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END));
+                    break;
+                }
+                case CLIENT_BIND_CAMERA:/* 绑定设备命令 */
+                {
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId ==
+                                Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1))
+                        {
+                            Tcp_ClientInformationList.at(clientIndex)->targetIP_string = Tcp_ClientInformationList.at(i)->ClientIP_String;
+                            Tcp_ClientInformationList.at(clientIndex)->targetPort_string = Tcp_ClientInformationList.at(i)->ClientPort_String;
+                            break;
+                        }
+                    }
                     Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
                                 Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;

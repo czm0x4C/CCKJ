@@ -64,6 +64,7 @@ void tcpTask::readData()
     static unsigned char cmd = 0;
     static bool recNextData = false;
 
+    static QList<QByteArray> onlineDeviceList;
     allRecData += receiveData;/* 保存客户端发送来的数据 */
     if(recNextData == true)/* 判断是否一个数据帧的数据还没有接收完毕 */
     {
@@ -166,9 +167,20 @@ void tcpTask::readData()
                     emit pictureError_signal();
                     break;
                 }
+                case ONLINE_CAMERA_DEVICE_ID_TO_CLIENT:
+                {
+                    onlineDeviceList.append(allRecData.mid(0,tcpDataLen - 1));
+                    allRecData.remove(0,tcpDataLen - 1);
+                    break;
+                }
+                case ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END:
+                {
+                    emit onlineDeviceName_singal(onlineDeviceList);
+                    onlineDeviceList.clear();
+                    break;
+                }
                 default:
                     qDebug() << allRecData.mid(0,tcpDataLen - 1);
-                    allRecData.remove(0,tcpDataLen - 1);
                     break;
             }
             if(allRecData.size() < 4)/* 接收的数据小于能够计算的数据长度字节数4，即不能得到后面的数据长度 */

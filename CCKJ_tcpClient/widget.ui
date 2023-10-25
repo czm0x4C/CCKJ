@@ -26,7 +26,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>1</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="widget">
     <attribute name="title">
@@ -265,7 +265,7 @@
        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;服务器地址：&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="CloseTCPButton_2">
+     <widget class="QPushButton" name="searchDeviceButton">
       <property name="geometry">
        <rect>
         <x>510</x>
@@ -278,7 +278,7 @@
        <string>搜索设备</string>
       </property>
      </widget>
-     <widget class="myComboBox" name="deviceComboBox_2">
+     <widget class="myComboBox" name="deviceOnlineComboBox">
       <property name="geometry">
        <rect>
         <x>400</x>

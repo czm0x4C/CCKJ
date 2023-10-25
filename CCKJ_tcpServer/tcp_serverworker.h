@@ -12,10 +12,14 @@ public:
     QTcpSocket* socket;//socket指针
     QString ClientIP_String;//ip端口字符串
     QString ClientPort_String;//端口字符串
+    QString targetIP_string;
+    QString targetPort_string;
     unsigned int ClientLocalUserID;/*此socket的用户ID*/
     unsigned int ClientFarUserID;/*此socket的远程连接用户ID*/
     unsigned int clientState;/*此socket的远程连接用户ID*/
-    bool cameraDevice;
+    bool cameraDevice;      /* 相机设备标识 */
+    QByteArray cameraDeviceId;    /* 相机设备ID */
+    bool pcClient;          /* PC客户端标识 */
     bool isActive;
 
 
@@ -79,10 +83,13 @@ private:
 
     enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
           PICTURE_TO_CLIENT_NAME,PICTURE_TO_CLIENT_DATA,PICTURE_TO_CLIENT_END,
-         TAKE_PICTURE,SET_CAMERA_DEVICE_FLAG,CAMERA_TAKE_PICTURE,CAMERA_TAKE_PICTURE_DONE,
+         TAKE_PICTURE,SET_CAMERA_DEVICE_FLAG,SET_CAMERA_DEVICE_ID,CAMERA_TAKE_PICTURE,CAMERA_TAKE_PICTURE_DONE,
          CLEAR_SERVER_CACHE,CLEAR_SERVER_CACHE_DONE,
          CLIENT_PICTURE_FILE_NAME,
-          PICTURE_ERROR};
+          PICTURE_ERROR,
+         GET_ONLINE_DEVICE,SET_PC_DEVICE_FLAG,
+          ONLINE_CAMERA_DEVICE_ID_TO_CLIENT,ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END,
+         CLIENT_BIND_CAMERA};
 };
 
 #endif // TCP_SERVERWORKER_H
