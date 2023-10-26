@@ -25,7 +25,6 @@ void app_main(void)
     if(strcmp((char *)connectState,"fail") == 0)      /* 保存的wifi信息无效 */
     {
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:读取的WIFI信息无效");
-        // xTaskCreate(uart_task, "uart_task", 1024 * 20, NULL, 2, NULL);
     }
     else if(strcmp((char *)connectState,"ok") == 0)   /* 保存的信息有效 */
     {

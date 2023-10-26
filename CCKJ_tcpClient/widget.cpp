@@ -239,6 +239,7 @@ void Widget::on_ConnectTCPtButton_clicked()
         emit appLogMessage_signal("TCP正在连接,请勿重复点击!");
         return;
     }
+
     emit appLogMessage_signal("开始连接TCP服务器!");
     /*得到服务器端的IP地址，以及服务器端的端口号*/
     QString TCP_Server_IP = ui->TCP_Server_IP_LineEdit->text();/*获取文本框中输入的服务器IP地址*/
@@ -256,7 +257,9 @@ void Widget::on_ConnectTCPtButton_clicked()
     connect(mTcpTask,&tcpTask::tcpServerCacheClearDone_signal,this,&Widget::on_tcpServerCacheClearDone,Qt::UniqueConnection);/* 子线程通知主线程服务器的缓存清除完毕 */
     connect(mTcpTask,&tcpTask::appLogMessage_signal,this,&Widget::on_showLogMessage,Qt::UniqueConnection);           /* 子线程输出log信息到主线程 */
     connect(mTcpTask,&tcpTask::pictureError_signal,this,&Widget::on_takePictureError,Qt::UniqueConnection);           /* 子线程发送拍摄图像错误信号到主线程 */
-    connect(mTcpTask,&tcpTask::onlineDeviceName_singal,this,&Widget::on_showDeviceId,Qt::UniqueConnection);
+    connect(mTcpTask,&tcpTask::onlineDeviceName_singal,this,&Widget::on_showDeviceId,Qt::UniqueConnection);             /* 子线程发送的在线的摄像头列表 */
+    connect(mTcpTask,&tcpTask::cameraBindOK_signal,this,&Widget::on_cameraBindOK,Qt::UniqueConnection);                 /* 摄像头绑定成功 */
+    connect(mTcpTask,&tcpTask::cameraBindFail_signal,this,&Widget::on_cameraBindFail,Qt::UniqueConnection);             /* 摄像头绑定失败 */
 
     connect(this,&Widget::tcpConnectToHost_signal,mTcpTask,&tcpTask::startTcpConnect,Qt::UniqueConnection);          /* 主线程通知子线程TCP连接服务器 */
     connect(this,&Widget::sendTcpData_signal,mTcpTask,&tcpTask::sendTcpData,Qt::UniqueConnection);                   /* 主线程通知子线程TCP发送数据 */
@@ -292,6 +295,11 @@ void Widget::on_searchPictureButton_clicked()
     if(!isTcpBackFinish)
     {
         emit appLogMessage_signal("任务正在进行，请稍后重试~");
+        return;
+    }
+    if(isBindFinish == false)
+    {
+        emit appLogMessage_signal("请绑定设备!");
         return;
     }
     emit appLogMessage_signal("开始下载图片");
@@ -343,7 +351,8 @@ void Widget::on_showPicture(QByteArray picData)
 void Widget::on_listViewClicked(const QModelIndex &index)
 {
     qDebug() << "选择的图片是:" << index.data().toString();
-    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit() + "/" + index.data().toString();
+    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
+                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit() + "/" + index.data().toString();
     QByteArray picData;
     QFile file(picPath);
     qDebug() << picPath;
@@ -370,6 +379,11 @@ void Widget::on_takePictureButton_clicked()
         emit appLogMessage_signal("任务正在进行，请稍后重试~");
         return;
     }
+    if(isBindFinish == false)
+    {
+        emit appLogMessage_signal("请绑定设备!");
+        return;
+    }
     emit appLogMessage_signal("设备开始拍照");
     emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)TAKE_PICTURE));
     ui->takePictureButton->setDisabled(true);/* 设置拍照按键不可用 */
@@ -385,7 +399,7 @@ void Widget::on_readPictureDownLoadState(tcpTask::picDownloadState state)
             /* 将程序下的图片文件复制到用户指定的文件夹下 */
             copyDirectoryFiles(QCoreApplication::applicationDirPath() + "/" + "照片",savePicFilePath + "/" + "照片",true);
             /* 遍历存储的所有图片文件 */
-            QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" +
+            QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
                                     ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
             QDir dir(picPath);
             QStringList filename ;
@@ -513,7 +527,7 @@ void Widget::comBoxClick()
 /* 将本地存在的文件名称发送给服务器，避免重复下载 */
 void Widget::sendExistPictureFileToServer()
 {
-    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" +
+    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
                             ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
     QDir dir(picPath);
     QStringList filename ;
@@ -773,9 +787,11 @@ void Widget::on_takePictureError()
     emit appLogMessage_signal("设备获取图像错误，超过最大重试次数或接收超时！");
 }
 
-
+/* 搜索在线设备的按键的槽函数 */
 void Widget::on_searchDeviceButton_clicked()
 {
+    if(!checkTcpServerIsOK()){appLogMessage_signal("请检查服务器是否连接！");return;};
+
     if(ui->searchDeviceButton->text() == "搜索设备")
     {
         emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)GET_ONLINE_DEVICE));
@@ -783,9 +799,23 @@ void Widget::on_searchDeviceButton_clicked()
     }
     else if(ui->searchDeviceButton->text() == "连接设备")
     {
+        if(ui->deviceOnlineComboBox->currentText() == "")
+        {
+            appLogMessage_signal("请检查设备ID是否正确！");
+            ui->searchDeviceButton->setText("搜索设备");
+            return;
+        }
         emit sendTcpData_signal(setDataFrameFormat( 1+ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),
                                                     (unsigned char)CLIENT_BIND_CAMERA,
                                                     ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
+    }
+    if(ui->searchDeviceButton->text() == "断开连接")
+    {
+        emit sendTcpData_signal(setDataFrameFormat( 1+ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),
+                                                   (unsigned char)CLIENT_DISBIND_CAMERA,
+                                                   ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
+        bindCameraDevice = "";
+        isBindFinish = false;
         ui->searchDeviceButton->setText("搜索设备");
     }
 }
@@ -798,5 +828,26 @@ void Widget::on_showDeviceId(QList<QByteArray> deviceIdList)
         ui->deviceOnlineComboBox->addItem(deviceIdList.at(i));
         qDebug()<< "设备ID" <<deviceIdList.at(i);
     }
+}
+
+void Widget::on_cameraBindOK()
+{
+    ui->searchDeviceButton->setText("断开连接");
+    bindCameraDevice = ui->deviceOnlineComboBox->currentText().toLocal8Bit();
+    mTcpTask->setBindCameraDevice(bindCameraDevice);
+    isBindFinish = true;
+}
+
+void Widget::on_cameraBindFail()
+{
+    ui->searchDeviceButton->setText("搜索设备");
+    bindCameraDevice = "";
+    isBindFinish = false;
+}
+
+
+void Widget::on_pushButton_clicked()
+{
+
 }
 

@@ -27,23 +27,26 @@ void TCP_ServerWorker::StartListenTCPClient(QString TcpServerIP,unsigned short T
     activeCheckTimer = new QTimer;
     activeCheckTimer->start(30000);
     connect(activeCheckTimer,&QTimer::timeout,this,&TCP_ServerWorker::checkTcpIsActive);
+
+    QTimer *takePictureOutTimer = new QTimer;/* 拍照超时检测 */
 }
 
 void TCP_ServerWorker::NewTcpConnect()
 {
     /*有新的客户端连接加入*/
-    TCP_ServerSocket = new QTcpSocket;
-    TCP_ServerSocket = TCP_Server->nextPendingConnection();/*连接TCP客户端*/
-    qDebug()<<"TCP_Server->serverAddress: "<<TCP_Server->serverAddress();
-    QString ClientIP   = TCP_ServerSocket->peerAddress().toString();
-    QString ClientPort = QString::number(TCP_ServerSocket->peerPort()); /*获取当前的socket的IP和端口号*/
-
     SocketInformationBind *SocketsInformation = new SocketInformationBind;
-    SocketsInformation->socket = TCP_ServerSocket;
+
+    SocketsInformation->socket = new QTcpSocket;
+    SocketsInformation->socket = TCP_Server->nextPendingConnection();/*连接TCP客户端*/
+    qDebug()<<"TCP_Server->serverAddress: "<<TCP_Server->serverAddress();
+    QString ClientIP   = SocketsInformation->socket->peerAddress().toString();
+    QString ClientPort = QString::number(SocketsInformation->socket->peerPort()); /*获取当前的socket的IP和端口号*/
+
     SocketsInformation->ClientIP_String = ClientIP;
     SocketsInformation->ClientPort_String = ClientPort;
     SocketsInformation->targetIP_string = "";
     SocketsInformation->targetPort_string = "";
+    SocketsInformation->cameraBindFlag = false;
     SocketsInformation->ClientLocalUserID = 0;
     SocketsInformation->ClientFarUserID = 0;
     SocketsInformation->isActive = true;
@@ -54,12 +57,16 @@ void TCP_ServerWorker::NewTcpConnect()
     SocketsInformation->tcpDataLen = 0;
     SocketsInformation->recNextData = false;
     SocketsInformation->recTcpData.clear();
-    SocketsInformation->existFileNameList.clear();/*写入信息*/
+    SocketsInformation->existFileNameList.clear();
+    SocketsInformation->takePictureOutTimer = new QTimer;
+    SocketsInformation->takePictureOutOfTime = false;/*写入信息*/
+
+    connect(SocketsInformation->takePictureOutTimer,&QTimer::timeout,this,&TCP_ServerWorker::on_takePictureError);
 
     Tcp_ClientInformationList.append(SocketsInformation);/*把当前的socket加入链表中*/
     qDebug() <<"新用户加入";
-    connect(TCP_ServerSocket,&QTcpSocket::readyRead,this,&TCP_ServerWorker::CilentDataRead);        /*关联读取数据的处理*/
-    connect(TCP_ServerSocket,&QTcpSocket::disconnected,this,&TCP_ServerWorker::ClientDisconnected); /*关联断开连接信号的处理*/
+    connect(SocketsInformation->socket,&QTcpSocket::readyRead,this,&TCP_ServerWorker::CilentDataRead);        /*关联读取数据的处理*/
+    connect(SocketsInformation->socket,&QTcpSocket::disconnected,this,&TCP_ServerWorker::ClientDisconnected); /*关联断开连接信号的处理*/
     emit TCP_ServerWorker::SocketInformationConnectSignal(ClientIP,ClientPort,Tcp_ClientInformationList.count()); /*向UI线程发送当前的连接客户端的socket信息*/
 }
 
@@ -125,41 +132,49 @@ void TCP_ServerWorker::CilentDataRead()
                     break;
                 }
                 case TAKE_PICTURE:/* 拍照命令 */
-                {
-                    emit appLogMessage_signal("接收到拍照命令");
-                    for(int i=0;i<Tcp_ClientInformationList.size();i++)
+                {   /* 此命令的发送方是PC客户端 */
+                    if(Tcp_ClientInformationList.at(clientIndex)->cameraBindFlag == true)/* 检查是否绑定了设备 */
                     {
-                        if(Tcp_ClientInformationList.at(i)->cameraDevice == true)
+                        emit appLogMessage_signal("接收到拍照命令，目标设备ID为：" +
+                                        Tcp_ClientInformationList.at(clientIndex)->cameraBindID.toLocal8Bit());
+                        for(int i=0;i<Tcp_ClientInformationList.count();i++)
                         {
-                            /* 像摄像头设备发送拍照命令 */
-                            Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)CAMERA_TAKE_PICTURE));
+                            if(Tcp_ClientInformationList.at(i)->cameraDeviceId ==
+                                        Tcp_ClientInformationList.at(clientIndex)->cameraBindID.toLocal8Bit())
+                            {
+                                /* 向摄像头设备发送拍照命令 */
+                                Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)CAMERA_TAKE_PICTURE));
+                                Tcp_ClientInformationList.at(clientIndex)->takePictureOutTimer->start(10*1000);/* 拍照定时10s */
+                                emit appLogMessage_signal("拍照命令发送成功");
+                                break;
+                            }
                         }
-                    }
-                    QTimer *takePictureOutTimer = new QTimer;
-                    takePictureOutTimer->start(10*1000);/* 定时10s */
-                    isTakePictureError  = false;
 
-                    connect(takePictureOutTimer,&QTimer::timeout,this,&TCP_ServerWorker::on_takePictureError);
-                    qDebug() << "拍照";
+                    }
                     break;
                 }
                 case CAMERA_TAKE_PICTURE_DONE:/* 拍照完成命令 */
-                {
+                {   /* 此命令的发送是摄像头 */
                     emit appLogMessage_signal("设备已经完成了拍照");
-                    for(int i=0;i<Tcp_ClientInformationList.size();i++)
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
                     {
-                        if(Tcp_ClientInformationList.at(i)->cameraDevice != true)
+                        if(Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId ==
+                                    Tcp_ClientInformationList.at(i)->cameraBindID.toLocal8Bit())
                         {
-                            /* 像摄像头设备发送拍照命令 */
+                            /* 向摄像头设备发送拍照完成命令 */
+                            Tcp_ClientInformationList.at(i)->takePictureOutTimer->stop();/* 拍照超时检测定时器关闭 */
                             Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)CAMERA_TAKE_PICTURE_DONE));
+                            break;
                         }
                     }
                     break;
                 }
                 case PICTURE_DATA:/* 设备发送的图片信息 */
                 {
+                    /* 此命令是相机发送来的 */
                     emit appLogMessage_signal("收到设备发送的图片");
                     /* 保存图像 */
+                    /* 创建图片文件夹 */
                     QString picName = QCoreApplication::applicationDirPath() + "/" + "照片";
                     QDir *videoDir;
                     videoDir = new QDir(picName);
@@ -173,6 +188,19 @@ void TCP_ServerWorker::CilentDataRead()
                             qDebug() << "创建文件夹成功";
                     }
                     delete videoDir;
+                    /* 创建 图片/设备ID文件夹 */
+                    picName += "/" + Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId;
+                    videoDir = new QDir(picName);
+                    if(!videoDir->exists())/* 查找是否存在视频文件 */
+                    {
+                        /* 不存在就创建 */
+                        bool ismkdir = videoDir->mkdir(picName);
+                        if(!ismkdir)
+                            qDebug() << "创建文件夹失败";
+                        else
+                            qDebug() << "创建文件夹成功";
+                    }
+                    /* 创建 图片/设备ID/日期年月日 文件夹 */
                     picName += "/" + QDateTime::currentDateTime().toString("yyyy-MM-dd");
                     videoDir = new QDir(picName);
                     if(!videoDir->exists())/* 查找是否存在视频文件 */
@@ -185,6 +213,7 @@ void TCP_ServerWorker::CilentDataRead()
                             qDebug() << "创建文件夹成功";
                     }
                     delete videoDir;
+                    /* 创建 图片/设备ID/日期年月日/时分秒 文件 */
                     picName += "/" + QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss") + ".jpeg";
                     QFile *RecFile = new QFile(picName);
                     RecFile->open(QFile::WriteOnly);
@@ -231,68 +260,72 @@ void TCP_ServerWorker::CilentDataRead()
                 }
                 case DOWNLOAD_PICTURE:/* 客户端请求下载图片数据 */
                 {
+                    /* 此命令来自PC客户端 */
                     emit appLogMessage_signal("客户端请求下载图片");
-                    QByteArray date = Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,
-                                                        Tcp_ClientInformationList.at(clientIndex)->tcpDataLen - 1);
-                    if(date.isEmpty())return;
+                    if(Tcp_ClientInformationList.at(clientIndex)->cameraBindFlag == true)/* 检查是否绑定了设备 */
+                    {
+                        QByteArray date =
+                            Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen - 1);
+                        if(date.isEmpty())return;
 
-                    qDebug() << "date:" << date;
-                    /* 遍历服务器存储的所有图片文件 */
-                    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + date;
-                    qDebug() << "picPath:" << picPath;
-                    QDir dir(picPath);
-                    QStringList filename ;
-                    filename << "*.jpeg";//可叠加，可使用通配符筛选
-                    QStringList fileResults;
-                    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
-                    if(fileResults.size() == 0)
-                    {
-                        Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
-                                    Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
-                        TempSocket->write(setCmdFrameFormat(1,(unsigned char)EMPTY));
-                        return;
-                    }
-                    qDebug() <<fileResults.at(0);
-                    for(int i=0;i<fileResults.size();i++)
-                    {
-                        for(int j=0;j<Tcp_ClientInformationList.at(clientIndex)->existFileNameList.count();j++)
+                        /* 遍历服务器存储的所有图片文件 */
+                        QString picPath =
+                            QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + Tcp_ClientInformationList.at(clientIndex)->cameraBindID + "/" + date;
+                        qDebug() << "picPath:" << picPath;
+                        QDir dir(picPath);
+                        QStringList filename ;
+                        filename << "*.jpeg";//可叠加，可使用通配符筛选
+                        QStringList fileResults;
+                        fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
+                        if(fileResults.size() == 0)
                         {
-                            if(fileResults.at(i) == Tcp_ClientInformationList.at(clientIndex)->existFileNameList.at(j))
+                            Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
+                                                                                         Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                            TempSocket->write(setCmdFrameFormat(1,(unsigned char)EMPTY));
+                            return;
+                        }
+                        qDebug() <<fileResults.at(0);
+                        for(int i=0;i<fileResults.size();i++)
+                        {
+                            for(int j=0;j<Tcp_ClientInformationList.at(clientIndex)->existFileNameList.count();j++)
                             {
-                                fileResults.removeAt(i);
+                                if(fileResults.at(i) == Tcp_ClientInformationList.at(clientIndex)->existFileNameList.at(j))
+                                {
+                                    fileResults.removeAt(i);
+                                }
                             }
                         }
-                    }
-                    Tcp_ClientInformationList.at(clientIndex)->existFileNameList.clear();
-                    /* 发送图片到客户端 */
-                    for(int i=0;i<fileResults.size();i++)
-                    {
-                        QByteArray picData;
-                        QString picName = fileResults.at(i);
-                        QString readFilePath = picPath + "/" + picName;
-                        QFile file(readFilePath);
-                        qDebug() << readFilePath;
-                        bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
-                        if(isReadOK)
+                        Tcp_ClientInformationList.at(clientIndex)->existFileNameList.clear();
+                        /* 发送图片到客户端 */
+                        for(int i=0;i<fileResults.size();i++)
                         {
-                            qDebug() << "读取成功";
-                            picData = file.readAll();
-                            file.close();
-                        }
-                        else
-                        {
-                            qDebug() << "读取失败";
-                            file.close();
-                        }
+                            QByteArray picData;
+                            QString picName = fileResults.at(i);
+                            QString readFilePath = picPath + "/" + picName;
+                            QFile file(readFilePath);
+                            qDebug() << readFilePath;
+                            bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
+                            if(isReadOK)
+                            {
+                                qDebug() << "读取成功";
+                                picData = file.readAll();
+                                file.close();
+                            }
+                            else
+                            {
+                                qDebug() << "读取失败";
+                                file.close();
+                            }
 
-                        TempSocket->write(setDataFrameFormat(1 + picName.size(),/* 数据总长 */
-                                           (unsigned char)PICTURE_TO_CLIENT_NAME, /* 数据帧功能 */
-                                           picName.toLocal8Bit()));/* 发送图片名称 */
-                        TempSocket->write(setDataFrameFormat(1 + picData.size(),/* 数据总长 */
-                                           (unsigned char)PICTURE_TO_CLIENT_DATA, /* 数据帧功能 */
-                                           picData));/* 发送图片数据 */
+                            TempSocket->write(setDataFrameFormat(1 + picName.size(),/* 数据总长 */
+                                                                 (unsigned char)PICTURE_TO_CLIENT_NAME, /* 数据帧功能 */
+                                                                 picName.toLocal8Bit()));/* 发送图片名称 */
+                            TempSocket->write(setDataFrameFormat(1 + picData.size(),/* 数据总长 */
+                                                                 (unsigned char)PICTURE_TO_CLIENT_DATA, /* 数据帧功能 */
+                                                                 picData));/* 发送图片数据 */
+                        }
+                        TempSocket->write(setCmdFrameFormat(1,(unsigned char)PICTURE_TO_CLIENT_END));/* 告诉客户端图片数据发送完成 */
                     }
-                    TempSocket->write(setCmdFrameFormat(1,(unsigned char)PICTURE_TO_CLIENT_END));/* 告诉客户端图片数据发送完成 */
                     Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
                                 Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;
@@ -309,12 +342,13 @@ void TCP_ServerWorker::CilentDataRead()
                 }
                 case PICTURE_ERROR:/* 得到ESP发送来的图像错误信息 */
                 {
-                    for(int i=0;i<Tcp_ClientInformationList.size();i++)
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
                     {
-                        if(Tcp_ClientInformationList.at(i)->cameraDevice != true)
+                        if(Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId ==
+                            Tcp_ClientInformationList.at(i)->cameraBindID.toLocal8Bit())
                         {
-                            /* 像摄像头设备发送拍照命令 */
                             Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)PICTURE_ERROR));
+                            break;
                         }
                     }
                     break;
@@ -344,18 +378,49 @@ void TCP_ServerWorker::CilentDataRead()
                 }
                 case CLIENT_BIND_CAMERA:/* 绑定设备命令 */
                 {
+                    bool isBindSuccess = false;
+                    /* 查询想要绑定的设备ID */
                     for(int i=0;i<Tcp_ClientInformationList.count();i++)
                     {
                         if(Tcp_ClientInformationList.at(i)->cameraDeviceId ==
                                 Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1))
                         {
+                            /* 记录相机的IP */
                             Tcp_ClientInformationList.at(clientIndex)->targetIP_string = Tcp_ClientInformationList.at(i)->ClientIP_String;
                             Tcp_ClientInformationList.at(clientIndex)->targetPort_string = Tcp_ClientInformationList.at(i)->ClientPort_String;
+                            /* 记录相机的设备ID */
+                            Tcp_ClientInformationList.at(clientIndex)->cameraBindID = Tcp_ClientInformationList.at(i)->cameraDeviceId;
+                            isBindSuccess = true;
                             break;
                         }
                     }
+                    if(isBindSuccess)
+                    {
+                       Tcp_ClientInformationList.at(clientIndex)->cameraBindFlag = true;
+                       Tcp_ClientInformationList.at(clientIndex)->socket->write(setCmdFrameFormat(1,(unsigned char)CLIENT_BIND_CAMERA_SUCCESS));
+                    }
+                    else
+                    {
+                       Tcp_ClientInformationList.at(clientIndex)->cameraBindFlag = false;
+                       Tcp_ClientInformationList.at(clientIndex)->socket->write(setCmdFrameFormat(1,(unsigned char)CLIENT_BIND_CAMERA_FAIL));
+                    }
                     Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
                                 Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                    break;
+                }
+                case CLIENT_DISBIND_CAMERA:/* 解绑设备命令 */
+                {
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                       if(Tcp_ClientInformationList.at(i)->cameraDeviceId ==
+                           Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1))
+                       {
+                            /* 清除设备的绑定命令 */
+                            Tcp_ClientInformationList.at(i)->cameraBindFlag = false;
+                            break;
+                       }
+                    }
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;
                 }
                 default:/* 未知的cmd */
@@ -518,7 +583,6 @@ void TCP_ServerWorker::on_takePictureError()
         }
     }
     tempTimer->stop();
-    tempTimer->deleteLater();
 }
 
 

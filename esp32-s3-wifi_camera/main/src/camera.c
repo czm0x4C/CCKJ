@@ -780,7 +780,7 @@ void appInit(void)
     {
         ESP_LOGI("TCP", "Successfully connected");
         /* 此时已经连接上TCP服务器 */
-        ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
+        // ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
 
         // /* 创建摄像头任务 */
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建摄像头任务");
@@ -789,9 +789,9 @@ void appInit(void)
 
         xTaskCreate(led_task, "led_task", 1024 * 10, NULL, 3, NULL); 
 
-        xTaskCreate(tcpReceive_task, "tcpReceive_task", 1024 * 50, NULL, 3, NULL); 
+        xTaskCreate(tcpReceive_task, "tcpReceive_task", 1024 * 10, NULL, 3, NULL); 
 
-        ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
+        // ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
         
         workFlag = 1;
     }

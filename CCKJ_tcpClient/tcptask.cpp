@@ -54,6 +54,11 @@ unsigned int tcpTask::qbyteArrayToUint(QByteArray dataBuffer)
     return value;
 }
 
+void tcpTask::setBindCameraDevice(QByteArray cameraID)
+{
+    bindCameraDevice = cameraID;
+}
+
 void tcpTask::readData()
 {
     QByteArray receiveData = TCP_Socket->readAll();
@@ -98,17 +103,25 @@ void tcpTask::readData()
             switch(cmd)/* 根据不同的功能进行处理 */
             {
                 case EMPTY:/* 服务器没有对应的数据 */
+                {
                     emit pictureDownload_signal(PICTURE_EMPTY);
                     break;
+                }
                 case PICTURE_TO_CLIENT_END:/* 服务器没有对应的数据 */
+                {
                     emit pictureDownload_signal(OK);
                     break;
+                }
                 case CAMERA_TAKE_PICTURE_DONE:/* 拍照完成命令 */
+                {
                     emit takePictureDone_signal();
                     break;
+                }
                 case CLEAR_SERVER_CACHE_DONE:/* 服务器清除缓存完成 */
+                {
                     emit tcpServerCacheClearDone_signal();
                     break;
+                }
                 case PICTURE_TO_CLIENT_NAME:/* 接收图片名称 */
                 {
                     picName = allRecData.mid(0,tcpDataLen - 1);
@@ -134,6 +147,19 @@ void tcpTask::readData()
                                 qDebug() << "创建文件夹成功";
                         }
                         delete videoDir;
+                        picPath += "/" + bindCameraDevice;
+                        videoDir = new QDir(picPath);
+                        if(!videoDir->exists())/* 查找是否存在视频文件 */
+                        {
+                            /* 不存在就创建 */
+                            bool ismkdir = videoDir->mkdir(picPath);
+                            if(!ismkdir)
+                                qDebug() << "创建文件夹失败";
+                            else
+                                qDebug() << "创建文件夹成功";
+                        }
+                        delete videoDir;
+
                         picPath += "/" + saveDateFileName;
                         videoDir = new QDir(picPath);
                         if(!videoDir->exists())/* 查找是否存在视频文件 */
@@ -167,16 +193,26 @@ void tcpTask::readData()
                     emit pictureError_signal();
                     break;
                 }
-                case ONLINE_CAMERA_DEVICE_ID_TO_CLIENT:
+                case ONLINE_CAMERA_DEVICE_ID_TO_CLIENT:/* 接受在线的摄像头ID列表 */
                 {
-                    onlineDeviceList.append(allRecData.mid(0,tcpDataLen - 1));
+                    onlineDeviceList.append(allRecData.mid(0,tcpDataLen - 1));//
                     allRecData.remove(0,tcpDataLen - 1);
                     break;
                 }
-                case ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END:
+                case ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END:/* 摄像头列表接受完毕 */
                 {
                     emit onlineDeviceName_singal(onlineDeviceList);
                     onlineDeviceList.clear();
+                    break;
+                }
+                case CLIENT_BIND_CAMERA_SUCCESS:/* 摄像头绑定成功 */
+                {
+                    emit cameraBindOK_signal();
+                    break;
+                }
+                case CLIENT_BIND_CAMERA_FAIL:/* 摄像头绑定失败 */
+                {
+                    emit cameraBindFail_signal();
                     break;
                 }
                 default:

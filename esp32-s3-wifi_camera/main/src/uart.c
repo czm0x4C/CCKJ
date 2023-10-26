@@ -196,24 +196,21 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                         case CMD_PICTURE_SIZE:
                                         {
                                             camera_config.frame_size = RxFrameData[i+4] | RxFrameData[i+5] <<8;
-                                            // uart_write_bytes(ECHO_UART_PORT_NUM, &RxFrameData[i+4], FrameLen);
                                             break;
                                         }
                                         case CMD_PICTURE_QUALITY:
                                         {
                                             camera_config.jpeg_quality = RxFrameData[i+4] | RxFrameData[i+5] <<8;
-                                            // uart_write_bytes(ECHO_UART_PORT_NUM, &RxFrameData[i+4], FrameLen);
                                             break;
                                         }
                                         case CMD_SET_PARA_END:
                                         {
-                                            // writeWifiInfo(wifiName,wifiPassword,(unsigned char *)deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort,(unsigned char *)"ok");
-                                            // setCameraPara();
                                             writeDeviceInfo();
                                             espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:数据写入完成,2s后重启");
+                                            ESP_LOGI("UART","数据写入完成,2s后重启");
                                             vTaskDelay(2000/portTICK_PERIOD_MS);
-                                            esp_restart();/* 重启设备 */
                                             ESP_LOGI("USB", "配置结束");
+                                            // esp_restart();/* 重启设备 */
                                             break;
                                         }
                                         default:
@@ -294,7 +291,7 @@ void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
 
 void usbCdcReceiveTask(void *pvParameters)
 {
-    ESP_LOGI("camera","任务开始");
+    ESP_LOGI("camera","usb任务开始");
     while(1)
     {
         if(UART_RxRingBuffer.Lenght > 0)
