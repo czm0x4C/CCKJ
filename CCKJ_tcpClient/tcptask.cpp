@@ -215,6 +215,11 @@ void tcpTask::readData()
                     emit cameraBindFail_signal();
                     break;
                 }
+                case OPEN_MOTO_SUCCESS_CMD:/* 打开电机成功 */
+                {
+                    emit cameraOpenMotoSuccess_signal();
+                    break;
+                }
                 default:
                     qDebug() << allRecData.mid(0,tcpDataLen - 1);
                     break;

@@ -15,7 +15,11 @@ enum frameCmd{
                 CMD_PICTURE_QUALITY,
                 CMD_SET_PARA_END,
                 CMD_LOG_MESSAGE,
-                CMD_DEVICE_ID
+                CMD_DEVICE_ID,
+                CMD_SHOW_DEVICE_INFO,
+                CMD_RESET_DEVICE,
+                CMD_SET_RECORD_TIME,
+                CMD_SET_DELAY_TIME
                     };
 void usbSerialPort_Init(void);
 unsigned char espSendLogMessage(unsigned char frameHead, unsigned char frameAddress, unsigned char frameID, char* data);

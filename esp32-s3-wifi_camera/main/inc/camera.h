@@ -33,6 +33,8 @@ typedef struct
     int jpegQuality;                        /* JPEG图像质量 */
     char UDP_serverIP[20];                  /* udp ip地址 */
     unsigned int UDP_serverPort;            /* udp 端口  */
+    char recordTime[50][6];                 /* 定时组 */
+    int recordTimeIndex;
 }_deviceInfo;
 
 extern _deviceInfo deviceAttributeInfo;
@@ -43,4 +45,5 @@ void writeDeviceInfo(void);
 void cameraSetConfig(void);
 void setCameraPara(void);
 void appInit(void);
+void showEspInfo(void);
 #endif /* __CAMERA_H__ */

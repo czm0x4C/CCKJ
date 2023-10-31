@@ -210,8 +210,37 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                             ESP_LOGI("UART","数据写入完成,2s后重启");
                                             vTaskDelay(2000/portTICK_PERIOD_MS);
                                             ESP_LOGI("USB", "配置结束");
-                                            // esp_restart();/* 重启设备 */
+                                            esp_restart();/* 重启设备 */
                                             break;
+                                        }
+                                        case CMD_SHOW_DEVICE_INFO:
+                                        {
+                                            showEspInfo();
+                                            break;
+                                        }
+                                        case CMD_RESET_DEVICE:
+                                        {
+                                            esp_restart();
+                                            break;
+                                        }
+                                        case CMD_SET_RECORD_TIME:
+                                        {
+                                            memset((char *)deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex],0,6);
+                                            memcpy((char *)deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex], &RxFrameData[i+4],FrameLen);
+                                            if(deviceAttributeInfo.recordTimeIndex > 50)
+                                            {
+                                                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:超过最大设置定时分组，请删除重试");
+                                                break;
+                                            }
+                                            ESP_LOGI("info","%s",deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex]);
+                                            deviceAttributeInfo.recordTimeIndex++;
+                                            
+                                            break;
+                                        }
+                                        case CMD_SET_DELAY_TIME:
+                                        {
+                                            deviceAttributeInfo.scheduledDeletion = RxFrameData[i+4] | RxFrameData[i+5] <<8;
+                                            ESP_LOGI("info","scheduledDeletion = %d",deviceAttributeInfo.scheduledDeletion);
                                         }
                                         default:
                                             break;

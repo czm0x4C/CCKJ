@@ -9,9 +9,11 @@
 #include <QFileDialog>
 #include <QString>
 #include <QDir>
+#include <QTime>
 
 #include <windows.h>
 #include <dbt.h>
+#include <stdio.h>
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -42,6 +44,8 @@ Widget::Widget(QWidget *parent)
     connect(ui->listView,&QListView::clicked, this, &Widget::on_listViewClicked);
 
     ui->selectDateEdit->setDateTime(QDateTime::currentDateTime());
+    ui->recordTimeEdit->setTime(QTime::currentTime());
+    ui->tcpRecordTimeEdit->setTime(QTime::currentTime());
 
     connect(ui->deviceComboBox,&myComboBox::Clicked_signals,this,&Widget::comBoxClick);
 }
@@ -260,6 +264,7 @@ void Widget::on_ConnectTCPtButton_clicked()
     connect(mTcpTask,&tcpTask::onlineDeviceName_singal,this,&Widget::on_showDeviceId,Qt::UniqueConnection);             /* 子线程发送的在线的摄像头列表 */
     connect(mTcpTask,&tcpTask::cameraBindOK_signal,this,&Widget::on_cameraBindOK,Qt::UniqueConnection);                 /* 摄像头绑定成功 */
     connect(mTcpTask,&tcpTask::cameraBindFail_signal,this,&Widget::on_cameraBindFail,Qt::UniqueConnection);             /* 摄像头绑定失败 */
+    connect(mTcpTask,&tcpTask::cameraOpenMotoSuccess_signal,this,&Widget::on_openMotoSuccess,Qt::UniqueConnection);     /* 摄像头打开电机成功 */
 
     connect(this,&Widget::tcpConnectToHost_signal,mTcpTask,&tcpTask::startTcpConnect,Qt::UniqueConnection);          /* 主线程通知子线程TCP连接服务器 */
     connect(this,&Widget::sendTcpData_signal,mTcpTask,&tcpTask::sendTcpData,Qt::UniqueConnection);                   /* 主线程通知子线程TCP发送数据 */
@@ -738,6 +743,7 @@ void Widget::on_writeDevicePushButton_clicked()
 
     unsigned short imageSize = 0;
     unsigned short imageQuality = 0;
+    unsigned short scheduledTime = 0;
 
     switch (ui->imageSizeComboBox->currentIndex())
     {
@@ -759,6 +765,8 @@ void Widget::on_writeDevicePushButton_clicked()
 
     imageQuality = ui->imageQualityComboBox->currentIndex();
 
+    scheduledTime = ui->scheduledTimeLineEdit->text().toUShort();
+
     if(wifiName.isEmpty()){emit appLogMessage_signal("WIFI名字为空，请检查");return;}
     if(wifiPassWord.isEmpty()){emit appLogMessage_signal("WIFI密码为空，请检查");return;}
     if(serverIp.isEmpty()){emit appLogMessage_signal("服务器地址为空，请检查");return;}
@@ -773,10 +781,17 @@ void Widget::on_writeDevicePushButton_clicked()
 
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,scheduledTime));
+
+    QByteArray dateTime;
+    for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
+    {
+        dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
+        qDebug() << ui->addRecordTimeComboBox->itemText(i);
+        emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
+    }
 
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));/* 配置信息发送完毕 */
-
-
     emit appLogMessage_signal("配置写入完成，设备重启");
 }
 
@@ -790,7 +805,7 @@ void Widget::on_takePictureError()
 /* 搜索在线设备的按键的槽函数 */
 void Widget::on_searchDeviceButton_clicked()
 {
-    if(!checkTcpServerIsOK()){appLogMessage_signal("请检查服务器是否连接！");return;};
+    if(!checkTcpServerIsOK()){emit appLogMessage_signal("请检查服务器是否连接！");return;};
 
     if(ui->searchDeviceButton->text() == "搜索设备")
     {
@@ -801,7 +816,7 @@ void Widget::on_searchDeviceButton_clicked()
     {
         if(ui->deviceOnlineComboBox->currentText() == "")
         {
-            appLogMessage_signal("请检查设备ID是否正确！");
+            emit appLogMessage_signal("请检查设备ID是否正确！");
             ui->searchDeviceButton->setText("搜索设备");
             return;
         }
@@ -844,10 +859,73 @@ void Widget::on_cameraBindFail()
     bindCameraDevice = "";
     isBindFinish = false;
 }
-
-
-void Widget::on_pushButton_clicked()
+/* 打开水泵按键 */
+void Widget::on_motoControlPushButton_clicked()
 {
+    if(!checkTcpServerIsOK())return;
+    if(isBindFinish == false)
+    {
+        emit appLogMessage_signal("请绑定设备!");
+        return;
+    }
+    emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)OPEN_MOTO_CMD));
+}
 
+void Widget::on_openMotoSuccess()
+{
+    emit appLogMessage_signal("电机已经启动");
+}
+
+void Widget::on_readDeviceInfoPushButton_clicked()
+{
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SHOW_DEVICE_INFO,0));
+}
+
+void Widget::on_resetDevicePushButton_clicked()
+{
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_RESET_DEVICE,0));
+}
+
+void Widget::on_addRecordTimePushButton_clicked()
+{
+    QByteArray dateTime;
+    dateTime.resize(5);
+    sprintf(dateTime.data(),"%02d:%02d",ui->recordTimeEdit->time().hour(),ui->recordTimeEdit->time().minute());
+    ui->addRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
+}
+
+
+void Widget::on_deleteRecordTimePushButton_clicked()
+{
+    ui->addRecordTimeComboBox->removeItem(ui->addRecordTimeComboBox->currentIndex());
+}
+
+/* 通过TCP设置定时参数按钮 */
+void Widget::on_tcpSetRecordPushButton_clicked()
+{
+    QByteArray dateTime;
+    for(int i=0;i<ui->tcpAddRecordTimeComboBox->count();i++)
+    {
+        dateTime = ui->tcpAddRecordTimeComboBox->itemText(i).toLocal8Bit();
+        qDebug() << ui->tcpAddRecordTimeComboBox->itemText(i);
+        emit sendTcpData_signal(setDataFrameFormat( 1 + dateTime.size(),
+                                                    (unsigned char)SET_RECORD_TIME_CMD,
+                                                    dateTime));/* 发送定时的时间 */
+    }
+}
+
+/* 添加一组定时按键 */
+void Widget::on_tcpAddRecordTimePushButton_clicked()
+{
+    QByteArray dateTime;
+    dateTime.resize(5);
+    sprintf(dateTime.data(),"%02d:%02d",ui->tcpRecordTimeEdit->time().hour(),ui->tcpRecordTimeEdit->time().minute());
+    ui->tcpAddRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
+}
+
+/* 删除一组定时 */
+void Widget::on_tcpDeleteRecordTimePushButton_clicked()
+{
+    ui->tcpAddRecordTimeComboBox->removeItem(ui->tcpAddRecordTimeComboBox->currentIndex());
 }
 

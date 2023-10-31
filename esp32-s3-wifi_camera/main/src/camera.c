@@ -31,76 +31,42 @@ unsigned char netOnlineFlag;
 unsigned char workFlag;
 
 char takePictureFlag = 0;/* 拍照的变量 */
+char openMotoFlag = 0;
 
 char logMessageBuffer[260];
 
-    enum {HERAT_BEAT_PACK = 0x00,PICTURE_DATA,DOWNLOAD_PICTURE,EMPTY,
-          PICTURE_TO_CLIENT_NAME,PICTURE_TO_CLIENT_DATA,PICTURE_TO_CLIENT_END,
-         TAKE_PICTURE,SET_CAMERA_DEVICE_FLAG,SET_CAMERA_DEVICE_ID,CAMERA_TAKE_PICTURE,CAMERA_TAKE_PICTURE_DONE,
-         CLEAR_SERVER_CACHE,CLEAR_SERVER_CACHE_DONE,
-         CLIENT_PICTURE_FILE_NAME,
-          PICTURE_ERROR,
-         GET_ONLINE_DEVICE,SET_PC_DEVICE_FLAG,
-          ONLINE_CAMERA_DEVICE_ID_TO_CLIENT,ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END,
-         CLIENT_BIND_CAMERA};
+    enum
+    {
+        HERAT_BEAT_PACK = 0x00,
+        PICTURE_DATA,
+        DOWNLOAD_PICTURE,
+        EMPTY,
+        PICTURE_TO_CLIENT_NAME,
+        PICTURE_TO_CLIENT_DATA,
+        PICTURE_TO_CLIENT_END,
+        TAKE_PICTURE,
+        SET_CAMERA_DEVICE_FLAG,
+        SET_CAMERA_DEVICE_ID,
+        CAMERA_TAKE_PICTURE,
+        CAMERA_TAKE_PICTURE_DONE,
+        CLEAR_SERVER_CACHE,
+        CLEAR_SERVER_CACHE_DONE,
+        CLIENT_PICTURE_FILE_NAME,
+        PICTURE_ERROR,
+        GET_ONLINE_DEVICE,
+        SET_PC_DEVICE_FLAG,
+        ONLINE_CAMERA_DEVICE_ID_TO_CLIENT,
+        ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END,
+        CLIENT_BIND_CAMERA,
+        CLIENT_DISBIND_CAMERA,
+        CLIENT_BIND_CAMERA_SUCCESS,
+        CLIENT_BIND_CAMERA_FAIL,
+        OPEN_MOTO_CMD,          /* 打开水泵的命令 */
+        OPEN_MOTO_SUCCESS_CMD,  /* 打开成功反馈 */
+        OPEN_MOTO_FAIL_CMD      /* 打开失败反馈 */
+    };
 
-//第一版硬件
-// #define CAM_PIN_PWDN    (45)
-// #define CAM_PIN_RESET   (48) //software reset will be performed
-// #define CAM_PIN_XCLK    (47)
-// #define CAM_PIN_SIOD    (18)
-// #define CAM_PIN_SIOC    ( 8)
-
-// #define CAM_PIN_D7      (12)
-// #define CAM_PIN_D6      (11)
-// #define CAM_PIN_D5      (10)
-// #define CAM_PIN_D4      ( 9)
-// #define CAM_PIN_D3      (46)
-// #define CAM_PIN_D2      ( 3)
-// #define CAM_PIN_D1      (20)
-// #define CAM_PIN_D0      (19)
-// #define CAM_PIN_VSYNC   (13)
-// #define CAM_PIN_HREF    (21)
-// #define CAM_PIN_PCLK    (14)
-
-// //第二版硬件
-// #define CAM_PIN_PWDN    (3)    //3
-// #define CAM_PIN_RESET   (19) //19
-// #define CAM_PIN_XCLK    (10)    //10
-// #define CAM_PIN_SIOD    (18)
-// #define CAM_PIN_SIOC    ( 8)
-
-// #define CAM_PIN_D7      (9)    //9
-// #define CAM_PIN_D6      (11)
-// #define CAM_PIN_D5      (12)    //12
-// #define CAM_PIN_D4      (14)    //14
-// #define CAM_PIN_D3      (47)    //47
-// #define CAM_PIN_D2      (45)   //pwdn 45
-// #define CAM_PIN_D1      (48)    //rest 48
-// #define CAM_PIN_D0      (21)    //21
-// #define CAM_PIN_VSYNC   (20)    //20
-// #define CAM_PIN_HREF    (46)    //46
-// #define CAM_PIN_PCLK    (13)    //13
-// //CCKJ
-// #define CAM_PIN_PWDN    (38)    //3
-// #define CAM_PIN_RESET   (40) //19
-// #define CAM_PIN_XCLK    (48)    //10
-// #define CAM_PIN_SIOD    (42)
-// #define CAM_PIN_SIOC    (41)
-
-// #define CAM_PIN_D7      (45)    //9
-// #define CAM_PIN_D6      (47)
-// #define CAM_PIN_D5      (21)    //12
-// #define CAM_PIN_D4      (13)    //14
-// #define CAM_PIN_D3      (11)    //47
-// #define CAM_PIN_D2      (9)   //pwdn 45
-// #define CAM_PIN_D1      (10)    //rest 48
-// #define CAM_PIN_D0      (12)    //21
-// #define CAM_PIN_VSYNC   (39)    //20
-// #define CAM_PIN_HREF    (0)    //46
-// #define CAM_PIN_PCLK    (14)    //13
-
-//第二版硬件
+//最新版硬件
 #define CAM_PIN_PWDN    (45)
 #define CAM_PIN_RESET   (39) //software reset will be performed
 #define CAM_PIN_XCLK    (21)
@@ -151,6 +117,43 @@ camera_config_t camera_config = {
     .fb_count = 1,                      //When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 };
+
+void sntp_Init(void)/* 获取实时网络时间 */
+{
+    /* 使用多个sntp服务器时，请在 make menuconfig -> Component config -> LWIP -> SNTP -> Maximum bumber of NTP servers 修改为 所使用的个数 */
+    sntp_stop();
+    ESP_LOGI("sntp","start.");
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);    // 设置单播模式
+    sntp_setservername(0, "cn.ntp.org.cn");     // 设置访问服务器
+    sntp_setservername(1, "ntp1.aliyun.com");
+    sntp_setservername(2, "pool.ntp.org");
+    sntp_setservername(3, "210.72.145.44");     // 国家授时中心服务器 IP 地址
+    setenv("TZ", "CST-8", 1);                   // 东八区
+    tzset();                                    // 更新本地C库时间
+    sntp_init();                                // 初始化
+
+    // 延时等待SNTP初始化完成
+    do {
+        ESP_LOGI("sntp","wait for wifi sntp sync time---------------------");
+        workLedToggle();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    } while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET);
+
+    // 成功获取网络时间后停止NTP请求，不然设备重启后会造成获取网络时间失败的现象
+    // 大概是服务器时根据心跳时间来删除客户端的，如果不是stop结束的客户端，下次连接服务器时就会出错
+	sntp_stop();
+    ESP_LOGI("sntp","sntp stop.");
+}
+
+void get_time(void)
+{
+    time_t now;
+    time(&now);                         // 获取网络时间, 64bit的秒计数 
+
+    localtime_r(&now, &timeinfo);       // 转换成具体的时间参数
+    // ESP_LOGI("sntp", "%4d-%02d-%02d %02d:%02d:%02d week:%d", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, 
+    //     timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, timeinfo.tm_wday); 
+}
 
 /* 读取储存的摄像头信息，进行初始化配置 */
 void cameraSetConfig(void)
@@ -324,7 +327,7 @@ void cameraSetConfig(void)
             ESP_LOGI("nvs","set deviceID fail!\n");
         }  
 
-        deviceAttributeInfo.scheduledDeletion = 3600 * 24 * 15;
+        deviceAttributeInfo.scheduledDeletion = 24 * 60;
         err = nvs_set_u32(nvsHandle,"setVideoTime",deviceAttributeInfo.scheduledDeletion);/* 写入录像时间 */  
         if(err==ESP_OK)
         {
@@ -334,6 +337,8 @@ void cameraSetConfig(void)
         {
             ESP_LOGI("nvs","set setVideoTime fail!\n");
         }  
+
+        ESP_ERROR_CHECK(nvs_set_blob(nvsHandle,"recordTime",(char *)deviceAttributeInfo.recordTime,240));/* 写入固定定时时间列表 */
 
         err = nvs_commit(nvsHandle); /* 确认数据写入 */
         if(err != ESP_OK)
@@ -406,25 +411,30 @@ void getDeviceInfo(void)
             break;
     }
     deviceAttributeInfo.jpegQuality = camera_config.jpeg_quality;
+
+    /* 读取定时时间 */
+    ESP_ERROR_CHECK(nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle));
+    size_t readBlobSize = 300;
+    ESP_ERROR_CHECK(nvs_get_blob(nvsHandle,"recordTime",(char *)deviceAttributeInfo.recordTime,&readBlobSize));
+    nvs_close(nvsHandle);
 }
 
 void writeDeviceInfo(void)
 {
     writeWifiInfo(wifiName,wifiPassword,(unsigned char *)deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort,(unsigned char *)"ok");
 
-    esp_err_t err = nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle);
-    err = nvs_set_str(nvsHandle,"deviceID",deviceAttributeInfo.deviceID);/* 写入设备ID */
-    if(err==ESP_OK)
-    {
-        memset(logMessageBuffer,0,sizeof(logMessageBuffer));
-        sprintf(logMessageBuffer,"ESP:设备DI = %s",deviceAttributeInfo.deviceID);
-        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
-    }
-    else
-    {
-        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"设备ID设置错误!");
-    }  
+    ESP_ERROR_CHECK(nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle));
+    ESP_ERROR_CHECK(nvs_set_str(nvsHandle,"deviceID",deviceAttributeInfo.deviceID));/* 写入设备ID */
 
+    char eraseTempBuffer[50][6];
+    ESP_ERROR_CHECK(nvs_set_blob(nvsHandle,"recordTime",eraseTempBuffer,300));/* 写入定时时间 */
+    ESP_ERROR_CHECK(nvs_set_blob(nvsHandle,"recordTime",(char *)deviceAttributeInfo.recordTime,300));/* 写入定时时间 */
+
+    deviceAttributeInfo.recordTimeIndex = 0;
+
+    ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setVideoTime",deviceAttributeInfo.scheduledDeletion));/* 写入录像时间 */  
+
+    nvs_close(nvsHandle);
     setCameraPara();
 }
 
@@ -443,14 +453,51 @@ void setCameraPara(void)
     nvs_close(nvsHandle);
 }
 
+void showEspInfo(void)
+{
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"摄像头图像格式：%s",deviceAttributeInfo.picFormat);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"摄像头图像尺寸：%d*%d",deviceAttributeInfo.picHeight,deviceAttributeInfo.picWidth);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"摄像头图像质量：%d",deviceAttributeInfo.jpegQuality);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"摄像头ID：%s",deviceAttributeInfo.deviceID);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"摄像头定时时间：%d",deviceAttributeInfo.scheduledDeletion);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+    sprintf(logMessageBuffer,"连接服务器地址：%s，服务器端口：%d",deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort);
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+    for(int i=0;i<48;i++)
+    {
+        // deviceAttributeInfo.recordTime[i];
+        ESP_LOGI("info","%s",deviceAttributeInfo.recordTime[i]);
+    }
+}
+
 void camera_task(void *pvParameters)
 {
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建摄像头任务");
     getDeviceInfo();
   
     static unsigned int Time1 = 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ;
     static unsigned int Time2 = 0;
     static unsigned int Time3 = 0;
     static unsigned int Time4 = 0;
+    static unsigned int Time5 = 0;
+    static unsigned int Time6 = 0;
+
     char frameBuffer[100];
     unsigned int sendTcpDataLen = 0;
 
@@ -459,10 +506,10 @@ void camera_task(void *pvParameters)
     esp_camera_deinit();                                /* 复位摄像头的硬件设置 */
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:重置摄像头");
 
-    camera_config.pixel_format = PIXFORMAT_JPEG;//PIXFORMAT_YUV422 PIXFORMAT_RGB565 PIXFORMAT_JPEG
-    camera_config.frame_size = FRAMESIZE_UXGA;
+    // camera_config.pixel_format = PIXFORMAT_JPEG;//PIXFORMAT_YUV422 PIXFORMAT_RGB565 PIXFORMAT_JPEG
+    // camera_config.frame_size = FRAMESIZE_UXGA;
 
-    camera_config.jpeg_quality = 10;
+    // camera_config.jpeg_quality = 10;
 
     if(CAM_PIN_PWDN != -1){
         esp_rom_gpio_pad_select_gpio(CAM_PIN_PWDN);
@@ -474,19 +521,21 @@ void camera_task(void *pvParameters)
     esp_err_t err = esp_camera_init(&camera_config);    /* 按照既定参数设置摄像头 */
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:设置摄像头");
     ESP_LOGI("camera","设置摄像头结束");
+
     if (err != ESP_OK)
     {
         memset(logMessageBuffer,0,sizeof(logMessageBuffer));
         sprintf(logMessageBuffer,"ESP:camera_err = %d",err);
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        memset(logMessageBuffer,0,sizeof(logMessageBuffer));
+        sprintf(logMessageBuffer,"ESP:设置摄像头失败，5s后重启");
+        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
+
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
         esp_restart();
     }
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:设置摄像头成功");
-    
-    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
-    sprintf(logMessageBuffer,"ESP:camera_config.frame_size = %d,camera_config.jpeg_quality = %d",camera_config.frame_size,camera_config.jpeg_quality);
-    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
 
     memset(frameBuffer,0,100);/* 清空数组 */
     sendTcpDataLen = 1;
@@ -525,9 +574,6 @@ void camera_task(void *pvParameters)
         esp_restart();
     } 
 
-
-    setKeyValue(1);
-
     while(1)
     {
         // ESP_LOGI(camera, "Taking picture...");
@@ -552,6 +598,7 @@ void camera_task(void *pvParameters)
                 
                 // send(sock,frameBuffer,5, 0);/* 发送帧头 */
                 // send(sock,pic->buf,pic->len, 0);/* 发送数据包 */
+                // get_time();
                 Time1 = Time2;
             }
 
@@ -571,6 +618,27 @@ void camera_task(void *pvParameters)
                 tcpSendErr = send(sock,frameBuffer,5, 0);
                 if(tcpSendErr <= 0)esp_restart();
                 Time3 = Time4;
+            }
+
+            Time6 = esp_log_timestamp();
+            if((Time6 - Time5) > 100000)/* 间隔60s */
+            {
+                char timeCmp[6];
+                get_time();
+                sprintf(timeCmp,"%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+
+                ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+                ESP_LOGI("camera","长度为%d",strlen(timeCmp));
+
+                // for(int i=0;i<24;i++)
+                // {
+                //     if(strcmp(timeCmp,deviceAttributeInfo.recordTime[i]) == 0)
+                //     {
+                //         ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+                //     }
+                // }
+                
+                Time5 = Time6;
             }
 
             if(takePictureFlag)
@@ -661,17 +729,40 @@ void camera_task(void *pvParameters)
             }
 
             static char keyFlag = 0;
-            if(keyValue(18) == 1 && keyFlag == 0)/* 断开检测到高电平 */
+            if(keyValue(KEY_IO) == 0 && keyFlag == 0)/* 吸合检测到低电平 */
             {
-                // takePictureFlag = 1;
+                takePictureFlag = 1;
                 keyFlag = 1;
-                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:外部高电平触发拍照");
+                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:外部触发拍照");
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
-            else if(keyValue(18) == 0 && keyFlag == 1)/* 等待联通 */
+            else if(keyValue(KEY_IO) == 1 && keyFlag == 1)/* 断开检测到高电平 */
             {
                 keyFlag = 0;
             }
+
+            if(openMotoFlag == 1)
+            {
+                motoOn();
+                memset(frameBuffer,0,100);/* 清空数组 */
+                sendTcpDataLen = 1;
+                frameBuffer[0] = sendTcpDataLen;
+                frameBuffer[1] = sendTcpDataLen>>8;
+                frameBuffer[2] = sendTcpDataLen>>16;
+                frameBuffer[3] = sendTcpDataLen>>24;
+
+                frameBuffer[4] = OPEN_MOTO_SUCCESS_CMD;
+                tcpSendErr = send(sock,frameBuffer,5, 0);/* 发送帧头 */
+                if(tcpSendErr <= 0){espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:3 TCP发送错误");vTaskDelay(1000 / portTICK_PERIOD_MS);esp_restart();}
+
+                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵打开");
+
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+                motoOff();
+                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵关闭");
+                openMotoFlag = 0;
+            }
+
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
         else
@@ -686,8 +777,8 @@ void camera_task(void *pvParameters)
 
 void led_task(void *pvParameters)
 {
-    LED_Init();/* led初始化 */
-    ESP_LOGE("LED", "init");
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建指示灯任务");
+
     while(1)
     {
         if(netOnlineFlag)
@@ -713,12 +804,11 @@ void led_task(void *pvParameters)
 
 void tcpReceive_task(void *pvParameters)
 {
-    ESP_LOGI("camera","任务开始");
+    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建TCP数据接收任务");
     while(1)
     {
-        ESP_LOGI("camera","接收指令");
+        ESP_LOGI("TCP","接收指令");
         int len = recv(sock, rx_buffer, sizeof(rx_buffer) - 1, 0);
-        ESP_LOGI("camera","OK");
         // Error occurred during receiving
         if (len < 0) {
             ESP_LOGE("camera", "recv failed: errno %d", errno);
@@ -736,8 +826,14 @@ void tcpReceive_task(void *pvParameters)
                 {
                     takePictureFlag = 1;
                     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到拍照指令");
-                    ESP_LOGI("camera","收到拍照指令");
+                    ESP_LOGI("TCP","收到拍照指令");
                 }                
+                if((recTcpDataLen == 1) && (rx_buffer[4] == OPEN_MOTO_CMD))
+                {
+                    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到打开水泵指令");
+                    openMotoFlag = 1;
+                    ESP_LOGI("TCP","收到打开水泵指令");
+                }
             }
         }
     }
@@ -764,26 +860,21 @@ void appInit(void)
     }
     ESP_LOGI("TCP", "Socket created, connecting to %s:%d", deviceAttributeInfo.UDP_serverIP, deviceAttributeInfo.UDP_serverPort);
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:开始TCP连接");
-    
-    memset(logMessageBuffer,0,sizeof(logMessageBuffer));
-    sprintf(logMessageBuffer,"ESP:IP = %s,port = %d",deviceAttributeInfo.UDP_serverIP,deviceAttributeInfo.UDP_serverPort);
-    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)logMessageBuffer);
 
     int err = connect(sock, (struct sockaddr *)&dest_addr, sizeof(struct sockaddr_in6));
     
     if (err != 0) 
     {
         ESP_LOGE("TCP", "Socket unable to connect: errno %d", errno);
-        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:TCP连接失败,请重新配置或重启");
+        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:TCP连接失败，请检查或更新配置！将在10s后重启尝试连接！");
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        esp_restart();
     }
     else
     {
         ESP_LOGI("TCP", "Successfully connected");
         /* 此时已经连接上TCP服务器 */
         // ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
-
-        // /* 创建摄像头任务 */
-        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建摄像头任务");
 
         xTaskCreate(camera_task, "camera_task", 1024 * 60, NULL, 2, &cameraTaskHandle); 
 
