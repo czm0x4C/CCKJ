@@ -92,8 +92,11 @@ private:
         OPEN_MOTO_SUCCESS_CMD,  /* 打开成功反馈 */
         OPEN_MOTO_FAIL_CMD,     /* 打开失败反馈 */
         SET_RECORD_TIME_CMD,    /* 设置定时时间 */
+        SET_RECORD_TIME_DONE_CMD,/* 设置定时结束 */
         SET_SCHEDULED_TIME_CMD, /* 设置间隔定时时间 */
-        SET_RECORD_TIME_SUCCESS_CMD /* 设置定时时间成功反馈 */
+        SET_RECORD_TIME_SUCCESS_CMD, /* 设置定时时间成功反馈 */
+        SET_LIED_BRIGHTNESS_CMD,
+        SET_TAKE_PICTURE_DELAY_TIME_CMD
     };
 
     bool isCreated = false;

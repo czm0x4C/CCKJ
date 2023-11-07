@@ -463,14 +463,42 @@ void TCP_ServerWorker::CilentDataRead()
                     {
                         if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
                         {
-                            Tcp_ClientInformationList.at(i)->socket->write(setDataFrameFormat(1,(unsigned char)SET_RECORD_TIME_CMD,
-                                        Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1)));
-                            qDebug()<< Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                            Tcp_ClientInformationList.at(i)->socket->write(
+                                        setDataFrameFormat(1 + Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1).size(),
+                                                           (unsigned char)SET_RECORD_TIME_CMD,
+                                                            Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1)));
                             break;
                         }
                     }
-                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,
-                                Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                    break;
+                }
+                case SET_RECORD_TIME_DONE_CMD:/* 设置固定定时结束 */
+                {
+                    /* 命令来自PC端 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)SET_RECORD_TIME_DONE_CMD));
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case SET_SCHEDULED_TIME_CMD:/* 发送间隔定时 */
+                {
+                    /* 命令来自PC端 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setDataFrameFormat(1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,
+                                                                           Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1)));
+                            break;
+                        }
+                    }
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;
                 }
                 default:/* 未知的cmd */

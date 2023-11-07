@@ -34,7 +34,9 @@ typedef struct
     char UDP_serverIP[20];                  /* udp ip地址 */
     unsigned int UDP_serverPort;            /* udp 端口  */
     char recordTime[50][6];                 /* 定时组 */
-    int recordTimeIndex;
+    int recordTimeIndex;                    /* 记录固定定时的时间组 */
+    unsigned int ledFlashBrightness;               /* 闪光灯亮度 */
+    unsigned int takePictureDelayTime;     /* 拍照的延时时间 */
 }_deviceInfo;
 
 extern _deviceInfo deviceAttributeInfo;

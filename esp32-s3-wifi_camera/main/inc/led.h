@@ -2,6 +2,9 @@
 #define __LED_H__
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_err.h"
+#include "driver/ledc.h"
+#include "camera.h"
 
 #define LED_NET     (5)
 #define LED_WORK    (4)
@@ -40,6 +43,8 @@ void moto_Init();
 void motoOn();
 
 void motoOff();
+
+void ledc_init(void);
 
 #endif /* __CAMERA_H__ */
 

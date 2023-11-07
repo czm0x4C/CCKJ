@@ -56,6 +56,8 @@ public:
 
     QByteArray setDataFrameFormat(unsigned int dataLen,unsigned char cmd,QByteArray data);
 
+    QByteArray setUshortFrameFormat(unsigned int dataLen,unsigned char cmd,unsigned short data);
+
     QByteArray setSerialPortStringDataFormat(unsigned char frameHead,unsigned char frameAddress,unsigned char frameID,QByteArray data);
     QByteArray setSerialPortUshortDataFormat(unsigned char frameHead,unsigned char frameAddress,unsigned char frameID,unsigned short data);
 
@@ -126,6 +128,14 @@ private slots:
     void on_tcpAddRecordTimePushButton_clicked();
 
     void on_tcpDeleteRecordTimePushButton_clicked();
+
+    void on_tcpRecordCheckBox_clicked();
+
+    void on_tcpScheduledTimeCheckBox_clicked();
+
+    void on_recordCheckBox_clicked();
+
+    void on_scheduledTimeCheckBox_clicked();
 
 signals:
 
@@ -212,8 +222,11 @@ private:
         OPEN_MOTO_SUCCESS_CMD,  /* 打开成功反馈 */
         OPEN_MOTO_FAIL_CMD,     /* 打开失败反馈 */
         SET_RECORD_TIME_CMD,    /* 设置定时时间 */
+        SET_RECORD_TIME_DONE_CMD,/* 设置定时结束 */
         SET_SCHEDULED_TIME_CMD, /* 设置间隔定时时间 */
-        SET_RECORD_TIME_SUCCESS_CMD /* 设置定时时间成功反馈 */
+        SET_RECORD_TIME_SUCCESS_CMD, /* 设置定时时间成功反馈 */
+        SET_LIED_BRIGHTNESS_CMD,        /* 设置闪光灯的亮度 */
+        SET_TAKE_PICTURE_DELAY_TIME_CMD /* 设置拍照延时 */
     };
 
     bool isTcpThreadAlive = false;

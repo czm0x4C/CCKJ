@@ -1,6 +1,7 @@
 #include "camera.h"
 #include "uart.h"
 #include "wifiConnect.h"
+#include "ringBuffer.h"
 
 #define UDP_SEND_MAX_LEN ( 60 * 1024 ) /* 设置UDP一包发送的最大数量 */
 
@@ -15,7 +16,7 @@ void camera_task(void *pvParameters);
 /* socket使用的相关变量 */
 #define HOST_IP_ADDR    "192.168.64.1"
 #define PORT            (8000)
-char rx_buffer[128];
+char rx_buffer[1024];
 char host_ip[] = HOST_IP_ADDR;
 int addr_family = 0;
 int ip_protocol = 0;
@@ -35,6 +36,7 @@ char openMotoFlag = 0;
 
 char logMessageBuffer[260];
 
+_RingBuffer TCP_RxRingBuffer;
     enum
     {
         HERAT_BEAT_PACK = 0x00,
@@ -63,7 +65,13 @@ char logMessageBuffer[260];
         CLIENT_BIND_CAMERA_FAIL,
         OPEN_MOTO_CMD,          /* 打开水泵的命令 */
         OPEN_MOTO_SUCCESS_CMD,  /* 打开成功反馈 */
-        OPEN_MOTO_FAIL_CMD      /* 打开失败反馈 */
+        OPEN_MOTO_FAIL_CMD,     /* 打开失败反馈 */
+        SET_RECORD_TIME_CMD,    /* 设置定时时间 */
+        SET_RECORD_TIME_DONE_CMD,/* 设置定时结束 */
+        SET_SCHEDULED_TIME_CMD, /* 设置间隔定时时间 */
+        SET_RECORD_TIME_SUCCESS_CMD, /* 设置定时时间成功反馈 */
+        SET_LIED_BRIGHTNESS_CMD,
+        SET_TAKE_PICTURE_DELAY_TIME_CMD
     };
 
 //最新版硬件
@@ -135,6 +143,7 @@ void sntp_Init(void)/* 获取实时网络时间 */
     // 延时等待SNTP初始化完成
     do {
         ESP_LOGI("sntp","wait for wifi sntp sync time---------------------");
+        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"获取网络时间ing");
         workLedToggle();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     } while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET);
@@ -250,6 +259,15 @@ void cameraSetConfig(void)
                 ESP_LOGI("nvs","frame_size = %d.\n",camera_config.frame_size);
             }
 
+            ESP_ERROR_CHECK(nvs_get_u32(nvsHandle,"setLedBri",&out_value));
+            deviceAttributeInfo.ledFlashBrightness = out_value;
+
+            ESP_ERROR_CHECK(nvs_get_u32(nvsHandle,"setDelayTime",&out_value));
+            deviceAttributeInfo.takePictureDelayTime = out_value;
+
+            ESP_LOGI("UART","灯的亮度为 = %d",deviceAttributeInfo.ledFlashBrightness);
+            ESP_LOGI("UART","拍照延时 = %d",deviceAttributeInfo.takePictureDelayTime);
+
             nvs_close(nvsHandle);
 
             err = nvs_open("wifiInfo", NVS_READWRITE, &nvsHandle);
@@ -312,10 +330,9 @@ void cameraSetConfig(void)
             ESP_LOGI("nvs","set deviceState fail!\n");
         }  
         memset(deviceAttributeInfo.deviceID,0,sizeof(deviceAttributeInfo.deviceID));
-        // sprintf(deviceAttributeInfo.deviceID,"%04d%02d%02d%02d%02d%02d",  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-        //                                                              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);/* 年月日时分秒 */
         sprintf(deviceAttributeInfo.deviceID,"%04d",1010);
         ESP_LOGI("nvs","set data %s .\n",deviceAttributeInfo.deviceID);
+
         err = nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle);
         err = nvs_set_str(nvsHandle,"deviceID",deviceAttributeInfo.deviceID);/* 写入设备ID */
         if(err==ESP_OK)
@@ -339,6 +356,14 @@ void cameraSetConfig(void)
         }  
 
         ESP_ERROR_CHECK(nvs_set_blob(nvsHandle,"recordTime",(char *)deviceAttributeInfo.recordTime,240));/* 写入固定定时时间列表 */
+
+        deviceAttributeInfo.ledFlashBrightness = 0;
+
+        ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setLedBri",deviceAttributeInfo.ledFlashBrightness));/* 写入闪光灯亮度 */ 
+
+        deviceAttributeInfo.takePictureDelayTime = 0;
+
+        ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setDelayTime",deviceAttributeInfo.takePictureDelayTime));/* 写入拍照延时 */  
 
         err = nvs_commit(nvsHandle); /* 确认数据写入 */
         if(err != ESP_OK)
@@ -416,6 +441,7 @@ void getDeviceInfo(void)
     ESP_ERROR_CHECK(nvs_open("deviceInfo", NVS_READWRITE, &nvsHandle));
     size_t readBlobSize = 300;
     ESP_ERROR_CHECK(nvs_get_blob(nvsHandle,"recordTime",(char *)deviceAttributeInfo.recordTime,&readBlobSize));
+
     nvs_close(nvsHandle);
 }
 
@@ -432,7 +458,11 @@ void writeDeviceInfo(void)
 
     deviceAttributeInfo.recordTimeIndex = 0;
 
-    ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setVideoTime",deviceAttributeInfo.scheduledDeletion));/* 写入录像时间 */  
+    ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setVideoTime",deviceAttributeInfo.scheduledDeletion));/* 写入间隔定时时间 */  
+
+    ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setLedBri",deviceAttributeInfo.ledFlashBrightness));/* 写入闪光灯亮度 */ 
+
+    ESP_ERROR_CHECK(nvs_set_u32(nvsHandle,"setDelayTime",deviceAttributeInfo.takePictureDelayTime));/* 写入拍照延时 */  
 
     nvs_close(nvsHandle);
     setCameraPara();
@@ -495,8 +525,17 @@ void camera_task(void *pvParameters)
     static unsigned int Time2 = 0;
     static unsigned int Time3 = 0;
     static unsigned int Time4 = 0;
-    static unsigned int Time5 = 0;
-    static unsigned int Time6 = 0;
+    // static unsigned int Time5 = 0;
+    // static unsigned int Time6 = 0;
+    static unsigned int Time7 = 0;
+    static unsigned int Time8 = 0;
+
+    Time1 = esp_log_timestamp();
+    Time2 = Time1;
+    Time3 = Time1;
+    Time4 = Time1;
+    Time7 = Time1;
+    Time8 = Time1;
 
     char frameBuffer[100];
     unsigned int sendTcpDataLen = 0;
@@ -601,7 +640,7 @@ void camera_task(void *pvParameters)
                 // get_time();
                 Time1 = Time2;
             }
-
+/*******************************************************************************心跳包**********************************************************************************************/
             Time4 = esp_log_timestamp();
             if((Time4 - Time3) > 1000)
             {
@@ -619,30 +658,33 @@ void camera_task(void *pvParameters)
                 if(tcpSendErr <= 0)esp_restart();
                 Time3 = Time4;
             }
-
-            Time6 = esp_log_timestamp();
-            if((Time6 - Time5) > 100000)/* 间隔60s */
+/*******************************************************************************固定定时判断**********************************************************************************************/
+            static unsigned char timeArrive = 0;
+            char timeCmp[6];
+            get_time();
+            sprintf(timeCmp,"%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+            for(int i=0;i<50;i++)
             {
-                char timeCmp[6];
-                get_time();
-                sprintf(timeCmp,"%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
-
-                ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
-                ESP_LOGI("camera","长度为%d",strlen(timeCmp));
-
-                // for(int i=0;i<24;i++)
-                // {
-                //     if(strcmp(timeCmp,deviceAttributeInfo.recordTime[i]) == 0)
-                //     {
-                //         ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
-                //     }
-                // }
-                
-                Time5 = Time6;
+                if(strcmp(timeCmp,deviceAttributeInfo.recordTime[i]) == 0 && timeArrive != i)
+                {
+                    ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+                    timeArrive = i;
+                }
             }
-
+/*******************************************************************************间隔定时判断**********************************************************************************************/
+            if(deviceAttributeInfo.scheduledDeletion != 0)/* 定时有效 */
+            {
+                Time8 = esp_log_timestamp();
+                if((Time8 - Time7) > (deviceAttributeInfo.scheduledDeletion * 1000 * 60))
+                {
+                    takePictureFlag = 1;
+                    Time7 = Time8;
+                }
+            }
+/*******************************************************************************拍照**********************************************************************************************/
             if(takePictureFlag)
             {
+                vTaskDelay(deviceAttributeInfo.takePictureDelayTime * 1000 /portTICK_PERIOD_MS);
                 flashLedOn();
                 
                 pic = esp_camera_fb_get();
@@ -684,9 +726,9 @@ void camera_task(void *pvParameters)
 
                 if(pic != NULL)
                 {
-                    ESP_LOGI(camera, "sendPicture~");
                     ESP_LOGI(camera, "Picture taken! Its size was: %zu bytes,width: %zu,height: %zu", 
                         pic->len,pic->width,pic->height);
+                    
                     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:正在发送图片");
                                     /* 发送图片包 */
                     memset(frameBuffer,0,100);/* 清空数组 */
@@ -727,7 +769,7 @@ void camera_task(void *pvParameters)
                 }
                 takePictureFlag = 0;
             }
-
+/*******************************************************************************外部电平检测**********************************************************************************************/
             static char keyFlag = 0;
             if(keyValue(KEY_IO) == 0 && keyFlag == 0)/* 吸合检测到低电平 */
             {
@@ -740,7 +782,7 @@ void camera_task(void *pvParameters)
             {
                 keyFlag = 0;
             }
-
+/*********************************************************************************继电器控制****************************************************************************************************/
             if(openMotoFlag == 1)
             {
                 motoOn();
@@ -805,6 +847,7 @@ void led_task(void *pvParameters)
 void tcpReceive_task(void *pvParameters)
 {
     espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:创建TCP数据接收任务");
+    RingBuffer_Init(&TCP_RxRingBuffer);
     while(1)
     {
         ESP_LOGI("TCP","接收指令");
@@ -817,23 +860,139 @@ void tcpReceive_task(void *pvParameters)
         }
         else 
         {
-            rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
-            if(len>4)
+            // rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string
+            // if(len>4)
+            // {
+            //     unsigned int recTcpDataLen = rx_buffer[0] | rx_buffer[1]<<8 |
+            //                                 rx_buffer[2]<<16 | rx_buffer[3]<<24;
+            //     if((recTcpDataLen == 1) && (rx_buffer[4] == CAMERA_TAKE_PICTURE))
+            //     {
+            //         takePictureFlag = 1;
+            //         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到拍照指令");
+            //         ESP_LOGI("TCP","收到拍照指令");
+            //     }                
+            //     if((recTcpDataLen == 1) && (rx_buffer[4] == OPEN_MOTO_CMD))
+            //     {
+            //         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到打开水泵指令");
+            //         openMotoFlag = 1;
+            //         ESP_LOGI("TCP","收到打开水泵指令");
+            //     }
+            //     if((recTcpDataLen == 1) && (rx_buffer[4] == SET_RECORD_TIME_CMD))
+            //     {
+            //         memcpy((char *)deviceAttributeInfo.recordTime, &rx_buffer[5],len - 4);
+            //         ESP_LOGI("TCP","收到数据:%s",(char *)deviceAttributeInfo.recordTime);
+            //         // espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:定时时间");
+            //     }
+            // }
+            /* 收到数据，全部写入缓冲区 */
+            WriteBytes(&TCP_RxRingBuffer,(unsigned char *)rx_buffer,len);
+
+            unsigned char *FrameData;                                               /*存储解析帧的空间*/
+		    unsigned short allFrameDataLen = TCP_RxRingBuffer.Lenght;               /* 获取缓冲区中的存储的数据长度 */
+            int dataIndex = 0;                                                      /* 数组中的偏移位置 */
+
+            if(xPortGetFreeHeapSize() >= allFrameDataLen)                           /* 判断剩余内存是否大于申请内存 */
             {
-                unsigned int recTcpDataLen = rx_buffer[0] | rx_buffer[1]<<8 |
-                                            rx_buffer[2]<<16 | rx_buffer[3]<<24;
-                if((recTcpDataLen == 1) && (rx_buffer[4] == CAMERA_TAKE_PICTURE))
+                FrameData = (unsigned char *)pvPortMalloc(allFrameDataLen);	        /*为读取缓冲区中的所有数据申请内存*/
+                if(ReadBytes(&TCP_RxRingBuffer,FrameData,allFrameDataLen) == 1)		/*读取缓冲区中的所有数据*/
                 {
-                    takePictureFlag = 1;
-                    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到拍照指令");
-                    ESP_LOGI("TCP","收到拍照指令");
-                }                
-                if((recTcpDataLen == 1) && (rx_buffer[4] == OPEN_MOTO_CMD))
-                {
-                    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到打开水泵指令");
-                    openMotoFlag = 1;
-                    ESP_LOGI("TCP","收到打开水泵指令");
+                    while(allFrameDataLen - dataIndex >= 4)/* 仍然可以得到数据长度 */
+                    {
+                        unsigned int frameDataLen = (int)FrameData[dataIndex + 0] |
+                                                    (int)FrameData[dataIndex + 1] <<  8 |
+                                                    (int)FrameData[dataIndex + 2] << 16 |
+                                                    (int)FrameData[dataIndex + 3] << 24;/* 得到长度数据 */
+
+                        if(allFrameDataLen - dataIndex - 4 >= frameDataLen)/* 能得到数据内容 */
+                        {   
+                            dataIndex += 4;
+                            switch(FrameData[dataIndex])
+                            {
+                                case CAMERA_TAKE_PICTURE:/* 拍照 */
+                                {
+                                    takePictureFlag = 1;
+                                    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到拍照指令");
+                                    break;
+                                }
+                                case OPEN_MOTO_CMD:
+                                {
+                                    openMotoFlag = 1;
+                                    espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:收到打开水泵指令");
+                                    break;
+                                }
+                                case SET_RECORD_TIME_CMD:/* 设置固定定时 */
+                                {
+                                    dataIndex++;
+                                    if(deviceAttributeInfo.recordTimeIndex > 50)
+                                    {
+                                        espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:超过最大设置定时分组，请删除重试");
+                                        break;
+                                    }
+                                    memcpy((char *)deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex],
+                                                &FrameData[dataIndex],5);
+                                    deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex][5] = '\0';
+                                    
+                                    ESP_LOGI("TCP","收到数据:%s",(char *)deviceAttributeInfo.recordTime[deviceAttributeInfo.recordTimeIndex]);
+                                    deviceAttributeInfo.recordTimeIndex++;
+                                    
+                                    deviceAttributeInfo.scheduledDeletion = 0;/* 固定定时时，间隔定时时间设置无效 */
+                                    dataIndex--;
+                                    // espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:定时时间");
+                                    break;
+                                }
+                                case SET_RECORD_TIME_DONE_CMD:
+                                {
+                                    ESP_LOGI("TCP","定时设置结束");
+                                    deviceAttributeInfo.recordTimeIndex = 0;
+                                    writeDeviceInfo();/* 写入数据到NVS中保存 */
+                                    break;
+                                }
+                                case SET_SCHEDULED_TIME_CMD:
+                                {
+                                    ESP_LOGI("TCP","间隔定时");
+                                    deviceAttributeInfo.scheduledDeletion = (unsigned short)FrameData[dataIndex + 1] | 
+                                                                            (unsigned short)FrameData[dataIndex + 2]<<8;
+
+                                    for(int i=0;i<50;i++)/* 间隔定时时清除固定定时设置的时间 */
+                                    {
+                                        memset(deviceAttributeInfo.recordTime[i],0,6);
+                                    }
+                                    ESP_LOGI("TCP","scheduledDeletion = %d",deviceAttributeInfo.scheduledDeletion);
+                                    break;
+                                }
+                                case SET_LIED_BRIGHTNESS_CMD:   /* 设置闪光灯亮度 */
+                                {
+                                    ESP_LOGI("TCP","设置闪光灯亮度");
+                                    deviceAttributeInfo.ledFlashBrightness = (unsigned short)FrameData[dataIndex + 1] | 
+                                                                            (unsigned short)FrameData[dataIndex + 2]<<8;
+
+                                    ESP_LOGI("TCP","ledFlashBrightness = %d",deviceAttributeInfo.ledFlashBrightness);
+                                    break;
+                                }
+                                case SET_TAKE_PICTURE_DELAY_TIME_CMD:    /* 设置拍照延时时间 */
+                                {
+                                    ESP_LOGI("TCP","拍照延时时间");
+                                    deviceAttributeInfo.takePictureDelayTime = (unsigned short)FrameData[dataIndex + 1] | 
+                                                                            (unsigned short)FrameData[dataIndex + 2]<<8;
+
+                                    ESP_LOGI("TCP","takePictureDelayTime = %d",deviceAttributeInfo.takePictureDelayTime);
+                                    break;
+                                }
+                                default:
+                                {
+                                    break;
+                                }
+                            }
+                            dataIndex += frameDataLen;
+                        }
+                        else/* 有数据长度但是没有数据内容,继续接受数据,下一次解析 */
+                        {
+                            WriteBytes(&TCP_RxRingBuffer,&FrameData[dataIndex],allFrameDataLen - dataIndex);/* 写入剩余数据 */
+                            break;
+                        }
+                    }
                 }
+                vPortFree(FrameData);  //释放内存
             }
         }
     }

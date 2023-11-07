@@ -172,6 +172,17 @@ QByteArray Widget::setDataFrameFormat(unsigned int dataLen, unsigned char cmd, Q
     tempData += data;
     return tempData;
 }
+
+QByteArray Widget::setUshortFrameFormat(unsigned int dataLen, unsigned char cmd, unsigned short data)
+{
+    QByteArray tempData;
+    tempData = uIntToQbyteArray(dataLen);/* 填充后面的数据长度 */
+    tempData.append(cmd);/* cmd */
+    tempData.resize(tempData.size()+2);
+    tempData[5] = data;
+    tempData[6] = data>>8;
+    return tempData;
+}
 /* 设置串口发送一个字符串的帧 */
 QByteArray Widget::setSerialPortStringDataFormat(unsigned char frameHead, unsigned char frameAddress, unsigned char frameID, QByteArray data)
 {
@@ -743,7 +754,8 @@ void Widget::on_writeDevicePushButton_clicked()
 
     unsigned short imageSize = 0;
     unsigned short imageQuality = 0;
-    unsigned short scheduledTime = 0;
+    unsigned short ledFlashBrightness = 0;
+    unsigned short takePictureDelayTime = 0;
 
     switch (ui->imageSizeComboBox->currentIndex())
     {
@@ -764,8 +776,8 @@ void Widget::on_writeDevicePushButton_clicked()
     }
 
     imageQuality = ui->imageQualityComboBox->currentIndex();
-
-    scheduledTime = ui->scheduledTimeLineEdit->text().toUShort();
+    ledFlashBrightness = ui->ledBrightnessLineEdit->text().toUShort();
+    takePictureDelayTime = ui->takePictureDelayTimeLineEdit->text().toUShort();
 
     if(wifiName.isEmpty()){emit appLogMessage_signal("WIFI名字为空，请检查");return;}
     if(wifiPassWord.isEmpty()){emit appLogMessage_signal("WIFI密码为空，请检查");return;}
@@ -781,18 +793,42 @@ void Widget::on_writeDevicePushButton_clicked()
 
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,scheduledTime));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_LIED_BRIGHTNESS,ledFlashBrightness));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TAKE_PICTURE_DELAY_TIME,takePictureDelayTime));
 
-    QByteArray dateTime;
-    for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
+    if(ui->scheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
     {
-        dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
-        qDebug() << ui->addRecordTimeComboBox->itemText(i);
-        emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
+        QByteArray dateTime;
+        dateTime = ui->scheduledTimeLineEdit->text().toLocal8Bit();
+        if(dateTime.isEmpty())
+        {
+            emit appLogMessage_signal("请输入正确的间隔时间!");
+            return;
+        }
+        if(dateTime.toUShort() > 24 * 60)
+        {
+            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
+            return;
+        }
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,dateTime.toUShort()));/* 发送间隔定时时间 */
+        emit appLogMessage_signal("间隔定时的定时时间已发送!");
     }
-
+    else if(ui->recordCheckBox->isChecked()) /* 固定定时 */
+    {
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,0));
+        QByteArray dateTime;
+        for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
+        {
+            dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
+            emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
+        }
+        emit appLogMessage_signal("固定定时的定时时间已发送!");
+    }
+    else
+    {
+        emit appLogMessage_signal("请选择定时方式!");
+    }
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));/* 配置信息发送完毕 */
-    emit appLogMessage_signal("配置写入完成，设备重启");
 }
 
 void Widget::on_takePictureError()
@@ -903,14 +939,37 @@ void Widget::on_deleteRecordTimePushButton_clicked()
 /* 通过TCP设置定时参数按钮 */
 void Widget::on_tcpSetRecordPushButton_clicked()
 {
-    QByteArray dateTime;
-    for(int i=0;i<ui->tcpAddRecordTimeComboBox->count();i++)
+    if(ui->tcpScheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
     {
-        dateTime = ui->tcpAddRecordTimeComboBox->itemText(i).toLocal8Bit();
-        qDebug() << ui->tcpAddRecordTimeComboBox->itemText(i);
-        emit sendTcpData_signal(setDataFrameFormat( 1 + dateTime.size(),
-                                                    (unsigned char)SET_RECORD_TIME_CMD,
-                                                    dateTime));/* 发送定时的时间 */
+        QByteArray dateTime;
+        dateTime = ui->tcpScheduledTimeLineEdit->text().toLocal8Bit();
+        if(dateTime.isEmpty())
+        {
+            emit appLogMessage_signal("请输入正确的间隔时间!");
+            return;
+        }
+        if(dateTime.toUShort() > 24 * 60)
+        {
+            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
+            return;
+        }
+        emit sendTcpData_signal(setUshortFrameFormat( 1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,dateTime.toUShort()));/* 发送间隔定时时间 */
+        emit appLogMessage_signal("间隔定时的定时时间已发送!");
+    }
+    else if(ui->tcpRecordCheckBox->isChecked()) /* 固定定时 */
+    {
+        emit sendTcpData_signal(setUshortFrameFormat( 1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,0));/* 发送间隔定时时间，时间为0分钟 */
+        QByteArray dateTime;
+        for(int i=0;i<ui->tcpAddRecordTimeComboBox->count();i++)
+        {
+            dateTime = ui->tcpAddRecordTimeComboBox->itemText(i).toLocal8Bit();
+            emit sendTcpData_signal(setDataFrameFormat( 1 + dateTime.size(),
+                                                        (unsigned char)SET_RECORD_TIME_CMD,
+                                                        dateTime));/* 发送定时的时间 */
+        }
+
+        emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)SET_RECORD_TIME_DONE_CMD));/* 发送定时的时间 */
+        emit appLogMessage_signal("固定定时的定时时间已发送!");
     }
 }
 
@@ -927,5 +986,38 @@ void Widget::on_tcpAddRecordTimePushButton_clicked()
 void Widget::on_tcpDeleteRecordTimePushButton_clicked()
 {
     ui->tcpAddRecordTimeComboBox->removeItem(ui->tcpAddRecordTimeComboBox->currentIndex());
+}
+
+void Widget::on_tcpRecordCheckBox_clicked()
+{
+    if(ui->tcpScheduledTimeCheckBox->isChecked())
+    {
+        ui->tcpScheduledTimeCheckBox->setCheckState(Qt::Unchecked);
+    }
+}
+
+
+void Widget::on_tcpScheduledTimeCheckBox_clicked()
+{
+    if(ui->tcpRecordCheckBox->isChecked())
+    {
+        ui->tcpRecordCheckBox->setCheckState(Qt::Unchecked);
+    }
+}
+
+void Widget::on_recordCheckBox_clicked()
+{
+    if(ui->scheduledTimeCheckBox->isChecked())
+    {
+        ui->scheduledTimeCheckBox->setCheckState(Qt::Unchecked);
+    }
+}
+
+void Widget::on_scheduledTimeCheckBox_clicked()
+{
+    if(ui->recordCheckBox->isChecked())
+    {
+        ui->recordCheckBox->setCheckState(Qt::Unchecked);
+    }
 }
 
