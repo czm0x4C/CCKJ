@@ -106,7 +106,11 @@ void FrameAnalysis(_RingBuffer *ringbuffer)
                                             espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:数据写入完成,2s后重启");
                                             ESP_LOGI("UART","数据写入完成,2s后重启");
                                             vTaskDelay(2000/portTICK_PERIOD_MS);
+<<<<<<< HEAD
                                             esp_restart();/* 重启设备 */
+=======
+                                            // esp_restart();/* 重启设备 */
+>>>>>>> 2de8a57dbd81777c71664dc7bfaa2fde1d141cc6
                                             break;
                                         }
                                         case CMD_SHOW_DEVICE_INFO:

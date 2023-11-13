@@ -668,7 +668,10 @@ void camera_task(void *pvParameters)
                 if(strcmp(timeCmp,deviceAttributeInfo.recordTime[i]) == 0 && timeArrive != i)
                 {
                     ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
+<<<<<<< HEAD
                     takePictureFlag = 1;
+=======
+>>>>>>> 2de8a57dbd81777c71664dc7bfaa2fde1d141cc6
                     timeArrive = i;
                 }
             }
