@@ -370,7 +370,7 @@ void TCP_ServerWorker::CilentDataRead()
                         {
                             TempSocket->write(setDataFrameFormat(1 + Tcp_ClientInformationList.at(i)->cameraDeviceId.size(),/* 数据总长 */
                                                (unsigned char)ONLINE_CAMERA_DEVICE_ID_TO_CLIENT, /* 数据帧功能 */
-                                               Tcp_ClientInformationList.at(i)->cameraDeviceId));/* 发送设备ID */
+                                                Tcp_ClientInformationList.at(i)->cameraDeviceId));/* 发送设备ID */
                         }
                     }
                     TempSocket->write(setCmdFrameFormat(1,(unsigned char)ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END));
@@ -419,6 +419,84 @@ void TCP_ServerWorker::CilentDataRead()
                             Tcp_ClientInformationList.at(i)->cameraBindFlag = false;
                             break;
                        }
+                    }
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                    break;
+                }
+                case OPEN_MOTO_CMD:/* 打开水泵命令 */
+                {
+                    /* PC客户端发送的 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)OPEN_MOTO_CMD));
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case OPEN_MOTO_SUCCESS_CMD:/* 打开水泵成功命令 */
+                {
+                    /* 命令来自相机设备 */
+                    emit appLogMessage_signal("设备打开水泵完成");
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(clientIndex)->cameraDeviceId ==
+                                    Tcp_ClientInformationList.at(i)->cameraBindID.toLocal8Bit())
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)OPEN_MOTO_SUCCESS_CMD));
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case OPEN_MOTO_FAIL_CMD:/* 打开水泵失败命令 */
+                {
+
+                    break;
+                }
+                case SET_RECORD_TIME_CMD:/* 设置固定定时 */
+                {
+                    /* 命令来自PC端 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(
+                                        setDataFrameFormat(1 + Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1).size(),
+                                                           (unsigned char)SET_RECORD_TIME_CMD,
+                                                            Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1)));
+                            break;
+                        }
+                    }
+                    Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
+                    break;
+                }
+                case SET_RECORD_TIME_DONE_CMD:/* 设置固定定时结束 */
+                {
+                    /* 命令来自PC端 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setCmdFrameFormat(1,(unsigned char)SET_RECORD_TIME_DONE_CMD));
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case SET_SCHEDULED_TIME_CMD:/* 发送间隔定时 */
+                {
+                    /* 命令来自PC端 */
+                    for(int i=0;i<Tcp_ClientInformationList.count();i++)
+                    {
+                        if(Tcp_ClientInformationList.at(i)->cameraDeviceId == Tcp_ClientInformationList.at(clientIndex)->cameraBindID)
+                        {
+                            Tcp_ClientInformationList.at(i)->socket->write(setDataFrameFormat(1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,
+                                                                           Tcp_ClientInformationList.at(clientIndex)->recTcpData.mid(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1)));
+                            break;
+                        }
                     }
                     Tcp_ClientInformationList.at(clientIndex)->recTcpData.remove(0,Tcp_ClientInformationList.at(clientIndex)->tcpDataLen-1);
                     break;
@@ -515,7 +593,6 @@ void TCP_ServerWorker::ServerSendDataToClient(unsigned int ClientID, QByteArray 
 
 void TCP_ServerWorker::checkTcpIsActive()
 {
-    qDebug() << "checkTcpIsActive";
     for(int i=0;i<Tcp_ClientInformationList.count();i++)
     {
         if(Tcp_ClientInformationList[i]->isActive == false)

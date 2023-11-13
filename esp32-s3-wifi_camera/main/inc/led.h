@@ -2,9 +2,12 @@
 #define __LED_H__
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_err.h"
+#include "driver/ledc.h"
+#include "camera.h"
 
-#define LED_NET     (4)
-#define LED_WORK    (5)
+#define LED_NET     (5)
+#define LED_WORK    (4)
 
 #define FLASH_CTR_IO        (42)
 #define FLASH_CTR_EXTRA_IO  (17)
@@ -21,6 +24,8 @@ void workLedOn(void);
 
 void workLedOff(void);
 
+void workLedToggle(void);
+
 void key_Init(void);
 
 void setKeyValue(int value);
@@ -32,6 +37,14 @@ void flashLed_Init(void);
 void flashLedOn(void);
 
 void flashLedOff(void);
+
+void moto_Init();
+
+void motoOn();
+
+void motoOff();
+
+void ledc_init(void);
 
 #endif /* __CAMERA_H__ */
 

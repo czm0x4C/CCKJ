@@ -59,11 +59,13 @@ void SerialPortThread::DataRead()
     {
         qDebug("1 写入数据不完整");
     }
+
     QByteArray bufferData;
     unsigned int nowBufferSize = bufferObj->ValidDataLen(serialPortBuffer);
     bufferObj->ReadBytes(serialPortBuffer,&bufferData,nowBufferSize);/*读取缓冲区中的所有数据*/
     unsigned int startFramePlace = 0;
     unsigned int endFramePlace = 0;
+
     for(unsigned int i=0;i<nowBufferSize;i++)
     {
         if((unsigned char)bufferData.at(i) == 0xAA)
@@ -71,14 +73,13 @@ void SerialPortThread::DataRead()
             startFramePlace = i;
             if((nowBufferSize - i) > 3)
             {
-                if((nowBufferSize - i) > i + 3 + bufferData.at(i+3) + 2)
+                if(nowBufferSize >= (unsigned int)( i + 3 + bufferData.at(i+3) + 2))
                 {
                     endFramePlace = i + 4 + bufferData.at(i+3) + 2;
                     QByteArray frameData = bufferData.mid(startFramePlace,endFramePlace - startFramePlace);
                     if(FrameDataCheck(frameData) == true)/*检验帧数据是否正确*/
                     {
                         /***********************得到下位机的完整数据**********************************/
-                        qDebug() << frameData;
                         if((unsigned char)frameData.at(1) == MCU)
                         {
                             switch((unsigned char)frameData.at(2))
@@ -92,15 +93,7 @@ void SerialPortThread::DataRead()
                                     break;
                             }
                         }
-                        /***********************帧数据处理结束**********************************/
-                        QByteArray leaveData = bufferData.mid(endFramePlace,nowBufferSize - endFramePlace);
-                        bufferObj->WriteBytes(serialPortBuffer,leaveData,&writeDataLen);
-                        if(leaveData.size() == 0)break;
-                        if(writeDataLen != leaveData.size())
-                        {
-                            qDebug("2 写入数据不完整");
-                        }
-                        break;/*结束此次的读取*/
+                        i += + 4 + bufferData.at(i+3) + 2 - 1;
                     }
                 }
                 else
@@ -124,7 +117,6 @@ void SerialPortThread::DataRead()
             }
         }
     }
-
 }
 int SerialPortThread::QByteToUint(QByteArray Data)
 {
