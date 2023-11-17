@@ -140,12 +140,18 @@ void sntp_Init(void)/* 获取实时网络时间 */
     tzset();                                    // 更新本地C库时间
     sntp_init();                                // 初始化
 
+    static unsigned char reTryCnt = 0; 
     // 延时等待SNTP初始化完成
     do {
         ESP_LOGI("sntp","wait for wifi sntp sync time---------------------");
         espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"获取网络时间ing");
         workLedToggle();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+        reTryCnt++;
+        if(reTryCnt > 20)
+        {
+            esp_restart();
+        }
     } while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET);
 
     // 成功获取网络时间后停止NTP请求，不然设备重启后会造成获取网络时间失败的现象
@@ -777,6 +783,8 @@ void camera_task(void *pvParameters)
                 takePictureFlag = 1;
                 keyFlag = 1;
                 espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:外部触发拍照");
+                motoOff();
+                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵关闭");
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
             else if(keyValue(KEY_IO) == 1 && keyFlag == 1)/* 断开检测到高电平 */
@@ -800,9 +808,9 @@ void camera_task(void *pvParameters)
 
                 espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵打开");
 
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
-                motoOff();
-                espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵关闭");
+                // vTaskDelay(2000 / portTICK_PERIOD_MS);
+                // motoOff();
+                // espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵关闭");
                 openMotoFlag = 0;
             }
 
