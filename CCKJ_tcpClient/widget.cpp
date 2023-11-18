@@ -436,7 +436,6 @@ void Widget::on_readPictureDownLoadState(tcpTask::picDownloadState state)
 
             listmodel->setStringList(list);
             ui->listView->setModel(listmodel);
-            QMessageBox::information(this, "提示", "图片下载完成");
             emit appLogMessage_signal("图片下载完成");
             ui->searchPictureButton->setDisabled(false);
             isTcpBackFinish = true;
@@ -599,7 +598,6 @@ void Widget::on_clearServerCahePathButton_clicked()
 void Widget::on_takePicFinish()
 {
     ui->takePictureButton->setDisabled(false);
-    QMessageBox::information(this, "提示", "拍照完成");
     emit appLogMessage_signal("拍照完成");
     isTcpBackFinish = true;
     on_searchPictureButton_clicked();/* 把拍摄的照片下载下来 */
