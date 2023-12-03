@@ -789,43 +789,43 @@ void Widget::on_writeDevicePushButton_clicked()
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT,serverPort));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_DEVICE_ID,deviceId));
 
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_LIED_BRIGHTNESS,ledFlashBrightness));
-    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TAKE_PICTURE_DELAY_TIME,takePictureDelayTime));
+//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
+//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
+//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_LIED_BRIGHTNESS,ledFlashBrightness));
+//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TAKE_PICTURE_DELAY_TIME,takePictureDelayTime));
 
-    if(ui->scheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
-    {
-        QByteArray dateTime;
-        dateTime = ui->scheduledTimeLineEdit->text().toLocal8Bit();
-        if(dateTime.isEmpty())
-        {
-            emit appLogMessage_signal("请输入正确的间隔时间!");
-            return;
-        }
-        if(dateTime.toUShort() > 24 * 60)
-        {
-            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
-            return;
-        }
-        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,dateTime.toUShort()));/* 发送间隔定时时间 */
-        emit appLogMessage_signal("间隔定时的定时时间已发送!");
-    }
-    else if(ui->recordCheckBox->isChecked()) /* 固定定时 */
-    {
-        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,0));
-        QByteArray dateTime;
-        for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
-        {
-            dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
-            emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
-        }
-        emit appLogMessage_signal("固定定时的定时时间已发送!");
-    }
-    else
-    {
-        emit appLogMessage_signal("请选择定时方式!");
-    }
+//    if(ui->scheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
+//    {
+//        QByteArray dateTime;
+//        dateTime = ui->scheduledTimeLineEdit->text().toLocal8Bit();
+//        if(dateTime.isEmpty())
+//        {
+//            emit appLogMessage_signal("请输入正确的间隔时间!");
+//            return;
+//        }
+//        if(dateTime.toUShort() > 24 * 60)
+//        {
+//            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
+//            return;
+//        }
+//        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,dateTime.toUShort()));/* 发送间隔定时时间 */
+//        emit appLogMessage_signal("间隔定时的定时时间已发送!");
+//    }
+//    else if(ui->recordCheckBox->isChecked()) /* 固定定时 */
+//    {
+//        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,0));
+//        QByteArray dateTime;
+//        for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
+//        {
+//            dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
+//            emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
+//        }
+//        emit appLogMessage_signal("固定定时的定时时间已发送!");
+//    }
+//    else
+//    {
+//        emit appLogMessage_signal("请选择定时方式!");
+//    }
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));/* 配置信息发送完毕 */
 }
 

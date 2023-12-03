@@ -122,7 +122,7 @@ camera_config_t camera_config = {
     .frame_size = FRAMESIZE_QSXGA,       //QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
     //FRAMESIZE_QVGA FRAMESIZE_QSXGA FRAMESIZE_UXGA
     .jpeg_quality = 10,                  //0-63, for OV series camera sensors, lower number means higher quality
-    .fb_count = 1,                      //When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
+    .fb_count = 2,                      //When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
 };
 
@@ -211,7 +211,7 @@ void cameraSetConfig(void)
             ESP_LOGI("nvs","scheduledDeletion = %d.\n",deviceAttributeInfo.scheduledDeletion);
 
             readNvsLen = 0;
-            err = nvs_get_str(nvsHandle, "picFormat",NULL, &readNvsLen);/* 读取设备ID */
+            err = nvs_get_str(nvsHandle, "picFormat",NULL, &readNvsLen);/* 读取图像类型 */
             if(err != ESP_OK){
                 strcpy(deviceAttributeInfo.picFormat,"PIXFORMAT_JPEG");
                 camera_config.pixel_format = PIXFORMAT_JPEG;
@@ -618,7 +618,7 @@ void camera_task(void *pvParameters)
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         esp_restart();
     } 
-
+    
     while(1)
     {
         // ESP_LOGI(camera, "Taking picture...");
@@ -674,7 +674,7 @@ void camera_task(void *pvParameters)
                 if(strcmp(timeCmp,deviceAttributeInfo.recordTime[i]) == 0 && timeArrive != i)
                 {
                     ESP_LOGI("camera","定时时间到%02d:%02d",timeinfo.tm_hour,timeinfo.tm_min);
-                    takePictureFlag = 1;
+                    openMotoFlag = 1;
                     timeArrive = i;
                 }
             }
@@ -684,18 +684,24 @@ void camera_task(void *pvParameters)
                 Time8 = esp_log_timestamp();
                 if((Time8 - Time7) > (deviceAttributeInfo.scheduledDeletion * 1000 * 60))
                 {
-                    takePictureFlag = 1;
+                    openMotoFlag = 1;
                     Time7 = Time8;
                 }
             }
 /*******************************************************************************拍照**********************************************************************************************/
             if(takePictureFlag)
             {
-                vTaskDelay(deviceAttributeInfo.takePictureDelayTime * 1000 /portTICK_PERIOD_MS);
                 flashLedOn();
                 
-                pic = esp_camera_fb_get();
-                esp_camera_fb_return(pic);
+                unsigned int tryPic = deviceAttributeInfo.takePictureDelayTime * 10;
+                while(tryPic)
+                {
+                    pic = esp_camera_fb_get();
+                    esp_camera_fb_return(pic);
+                    vTaskDelay(100 /portTICK_PERIOD_MS);
+                    tryPic--;
+                }
+                
 
                 pic = esp_camera_fb_get();
                 
@@ -778,7 +784,7 @@ void camera_task(void *pvParameters)
             }
 /*******************************************************************************外部电平检测**********************************************************************************************/
             static char keyFlag = 0;
-            if(keyValue(KEY_IO) == 0 && keyFlag == 0)/* 吸合检测到低电平 */
+            if(keyValue(KEY_IO) == 0 && keyFlag == 0)/* 吸合检测到低电平，水位到达水位线 */
             {
                 takePictureFlag = 1;
                 keyFlag = 1;
@@ -792,7 +798,7 @@ void camera_task(void *pvParameters)
                 keyFlag = 0;
             }
 /*********************************************************************************继电器控制****************************************************************************************************/
-            if(openMotoFlag == 1)
+            if(openMotoFlag == 1 && keyValue(KEY_IO) == 1) /* 水位检测开关没有到达水位线，可以打开水泵 */
             {
                 motoOn();
                 memset(frameBuffer,0,100);/* 清空数组 */
@@ -807,10 +813,13 @@ void camera_task(void *pvParameters)
                 if(tcpSendErr <= 0){espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:3 TCP发送错误");vTaskDelay(1000 / portTICK_PERIOD_MS);esp_restart();}
 
                 espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵打开");
-
-                // vTaskDelay(2000 / portTICK_PERIOD_MS);
-                // motoOff();
-                // espSendLogMessage(0xAA,MCU,CMD_LOG_MESSAGE,(char*)"ESP:水泵关闭");
+                openMotoFlag = 0;
+            }
+            else if(openMotoFlag == 1 && keyValue(KEY_IO) == 0)
+            {
+                ESP_LOGI("camera","水泵打开指令，外部检测到水位已到达");
+                //此时就只执行拍照
+                takePictureFlag = 1;
                 openMotoFlag = 0;
             }
 
