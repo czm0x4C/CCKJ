@@ -43,11 +43,22 @@ Widget::Widget(QWidget *parent)
     listmodel = new QStringListModel;
     connect(ui->listView,&QListView::clicked, this, &Widget::on_listViewClicked);
 
-    ui->selectDateEdit->setDateTime(QDateTime::currentDateTime());
-    ui->recordTimeEdit->setTime(QTime::currentTime());
-    ui->tcpRecordTimeEdit->setTime(QTime::currentTime());
+//    ui->selectDateEdit->setDateTime(QDateTime::currentDateTime());
+//    ui->recordTimeEdit->setTime(QTime::currentTime());
+//    ui->tcpRecordTimeEdit->setTime(QTime::currentTime());
 
     connect(ui->deviceComboBox,&myComboBox::Clicked_signals,this,&Widget::comBoxClick);
+
+    //获取所有的控件
+    m_Widget = this->findChildren<QWidget*>(QString(), Qt::FindChildrenRecursively);
+//    m1_Widget = this->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+//    m_Widget = this->findChildren<QWidget*>(QString());
+    //遍历控件获取大小和位置
+    foreach(auto widget, m_Widget)
+    {
+        m_WidgetRect.insert(widget, QRect(widget->x(), widget->y(), widget->width(), widget->height()));
+    }
+
 }
 
 Widget::~Widget()
@@ -320,12 +331,12 @@ void Widget::on_searchPictureButton_clicked()
     }
     emit appLogMessage_signal("开始下载图片");
     sendExistPictureFileToServer();/* 向服务器发送本地已经存在的文件 */
-    mTcpTask->setSaveDateFileName(ui->selectDateEdit->date().toString("yyyy-MM-dd"));/* 设置保存的文件名称，以读取到日历控件的日期命名 */
+//    mTcpTask->setSaveDateFileName(ui->selectDateEdit->date().toString("yyyy-MM-dd"));/* 设置保存的文件名称，以读取到日历控件的日期命名 */
     /* 向服务器发送下载图片的命令,携带指定的日期，代表下载指定日期的图片数据 */
-    emit sendTcpData_signal(
-                setDataFrameFormat(1 + ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit().size(),/* 数据总长 */
-                                   (unsigned char)DOWNLOAD_PICTURE, /* 数据帧功能 */
-                                   ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit()));/* 数据内容 */
+//    emit sendTcpData_signal(
+//                setDataFrameFormat(1 + ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit().size(),/* 数据总长 */
+//                                   (unsigned char)DOWNLOAD_PICTURE, /* 数据帧功能 */
+//                                   ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit()));/* 数据内容 */
     ui->searchPictureButton->setDisabled(true);
     isTcpBackFinish = false;
 }
@@ -367,24 +378,24 @@ void Widget::on_showPicture(QByteArray picData)
 void Widget::on_listViewClicked(const QModelIndex &index)
 {
     qDebug() << "选择的图片是:" << index.data().toString();
-    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit() + "/" + index.data().toString();
-    QByteArray picData;
-    QFile file(picPath);
-    qDebug() << picPath;
-    bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
-    if(isReadOK)
-    {
-        qDebug() << "读取成功";
-        picData = file.readAll();
-        file.close();
-    }
-    else
-    {
-        qDebug() << "读取失败";
-        file.close();
-    }
-    on_showPicture(picData);
+//    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
+//                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit() + "/" + index.data().toString();
+//    QByteArray picData;
+//    QFile file(picPath);
+//    qDebug() << picPath;
+//    bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
+//    if(isReadOK)
+//    {
+//        qDebug() << "读取成功";
+//        picData = file.readAll();
+//        file.close();
+//    }
+//    else
+//    {
+//        qDebug() << "读取失败";
+//        file.close();
+//    }
+//    on_showPicture(picData);
 }
 /* 拍照按键 */
 void Widget::on_takePictureButton_clicked()
@@ -415,30 +426,30 @@ void Widget::on_readPictureDownLoadState(tcpTask::picDownloadState state)
             /* 将程序下的图片文件复制到用户指定的文件夹下 */
             copyDirectoryFiles(QCoreApplication::applicationDirPath() + "/" + "照片",savePicFilePath + "/" + "照片",true);
             /* 遍历存储的所有图片文件 */
-            QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-                                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
-            QDir dir(picPath);
-            QStringList filename ;
-            filename << "*.jpeg";//可叠加，可使用通配符筛选
-            QStringList fileResults;
-            fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
-            if(fileResults.size() == 0)
-            {
-                QMessageBox::warning(this, "警告!", "没有找到下载的图片!");
-                return;
-            }
+//            QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
+//                                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
+//            QDir dir(picPath);
+//            QStringList filename ;
+//            filename << "*.jpeg";//可叠加，可使用通配符筛选
+//            QStringList fileResults;
+//            fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
+//            if(fileResults.size() == 0)
+//            {
+//                QMessageBox::warning(this, "警告!", "没有找到下载的图片!");
+//                return;
+//            }
 
-            QStringList list;
-            for(int i=0;i<fileResults.size();i++)
-            {
-                list.append(fileResults.at(i));
-            }
+//            QStringList list;
+//            for(int i=0;i<fileResults.size();i++)
+//            {
+//                list.append(fileResults.at(i));
+//            }
 
-            listmodel->setStringList(list);
-            ui->listView->setModel(listmodel);
-            emit appLogMessage_signal("图片下载完成");
-            ui->searchPictureButton->setDisabled(false);
-            isTcpBackFinish = true;
+//            listmodel->setStringList(list);
+//            ui->listView->setModel(listmodel);
+//            emit appLogMessage_signal("图片下载完成");
+//            ui->searchPictureButton->setDisabled(false);
+//            isTcpBackFinish = true;
             break;
         }
         case tcpTask::PICTURE_EMPTY:
@@ -542,31 +553,31 @@ void Widget::comBoxClick()
 /* 将本地存在的文件名称发送给服务器，避免重复下载 */
 void Widget::sendExistPictureFileToServer()
 {
-    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-                            ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
-    QDir dir(picPath);
-    QStringList filename ;
-    filename << "*.jpeg";//可叠加，可使用通配符筛选
-    QStringList fileResults;
-    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
-    if(fileResults.size() == 0)
-    {
-        return;
-    }
-    emit appLogMessage_signal("检测到本地有存在的图片数据");
-    emit appLogMessage_signal("请注意，这些图片将不会重复下载");
-    QStringList list;
-    for(int i=0;i<fileResults.size();i++)
-    {
-        list.append(fileResults.at(i));
-        qDebug() <<fileResults.at(i);
-        /* 将已经下载下来的图片发送给服务器，来避免重复下载图片 */
-        emit sendTcpData_signal(
-                    setDataFrameFormat(1 + fileResults.at(i).toLocal8Bit().size(),/* 数据总长 */
-                                       (unsigned char)CLIENT_PICTURE_FILE_NAME, /* 数据帧功能 */
-                                       fileResults.at(i).toLocal8Bit()));/* 数据内容 */
-        emit appLogMessage_signal("本地存在的图片:" + fileResults.at(i).toLocal8Bit());
-    }
+//    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
+//                            ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
+//    QDir dir(picPath);
+//    QStringList filename ;
+//    filename << "*.jpeg";//可叠加，可使用通配符筛选
+//    QStringList fileResults;
+//    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
+//    if(fileResults.size() == 0)
+//    {
+//        return;
+//    }
+//    emit appLogMessage_signal("检测到本地有存在的图片数据");
+//    emit appLogMessage_signal("请注意，这些图片将不会重复下载");
+//    QStringList list;
+//    for(int i=0;i<fileResults.size();i++)
+//    {
+//        list.append(fileResults.at(i));
+//        qDebug() <<fileResults.at(i);
+//        /* 将已经下载下来的图片发送给服务器，来避免重复下载图片 */
+//        emit sendTcpData_signal(
+//                    setDataFrameFormat(1 + fileResults.at(i).toLocal8Bit().size(),/* 数据总长 */
+//                                       (unsigned char)CLIENT_PICTURE_FILE_NAME, /* 数据帧功能 */
+//                                       fileResults.at(i).toLocal8Bit()));/* 数据内容 */
+//        emit appLogMessage_signal("本地存在的图片:" + fileResults.at(i).toLocal8Bit());
+//    }
 }
 /* 清除本地缓存按钮 */
 void Widget::on_clearLocalCahePathButton_clicked()
@@ -924,7 +935,7 @@ void Widget::on_addRecordTimePushButton_clicked()
 {
     QByteArray dateTime;
     dateTime.resize(5);
-    sprintf(dateTime.data(),"%02d:%02d",ui->recordTimeEdit->time().hour(),ui->recordTimeEdit->time().minute());
+//    sprintf(dateTime.data(),"%02d:%02d",ui->recordTimeEdit->time().hour(),ui->recordTimeEdit->time().minute());
     ui->addRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
 }
 
@@ -976,7 +987,7 @@ void Widget::on_tcpAddRecordTimePushButton_clicked()
 {
     QByteArray dateTime;
     dateTime.resize(5);
-    sprintf(dateTime.data(),"%02d:%02d",ui->tcpRecordTimeEdit->time().hour(),ui->tcpRecordTimeEdit->time().minute());
+//    sprintf(dateTime.data(),"%02d:%02d",ui->tcpRecordTimeEdit->time().hour(),ui->tcpRecordTimeEdit->time().minute());
     ui->tcpAddRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
 }
 
@@ -1017,5 +1028,24 @@ void Widget::on_scheduledTimeCheckBox_clicked()
     {
         ui->recordCheckBox->setCheckState(Qt::Unchecked);
     }
+}
+
+void Widget::resizeEvent(QResizeEvent *event)
+{
+    Q_UNUSED(event);
+    show();
+    qApp->processEvents();
+    float width = this->width() * 1./ 477;
+    float height = this->height() * 1./630;
+    for ( auto it= m_WidgetRect.begin(); it != m_WidgetRect.end(); it++ )
+    {
+        it.key()->setGeometry(it.value().x() * width, it.value().y() * height, it.value().width() * width, it.value().height() * height);
+        it.key()->updateGeometry();
+    }
+//    for(int i=0;i<m_Widget.count();i++)
+//    {
+//        m_Widget[i]->setGeometry(m_Widget.at(i)->x() * width,m_Widget.at(i)->y() * height,m_Widget.at(i)->width() * width,m_Widget.at(i)->height() * height);
+//    }
+update();
 }
 

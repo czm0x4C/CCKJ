@@ -160,10 +160,22 @@ signals:
 
 protected:
 
-    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result);
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+
+    virtual void resizeEvent(QResizeEvent *event) override;
 
 private:
     Ui::Widget *ui;
+
+    QList<QWidget*> m_Widget;			    //存储所有的子控件
+
+    QMap<QWidget*, QRect> m_WidgetRect;		//保存每个子控件的初始大小
+
+    QList<QWidget*> m1_Widget;			    //存储所有的子控件
+
+    QMap<QWidget*, QRect> m1_WidgetRect;		//保存每个子控件的初始大小
+
+
     QByteArray UintToByteArray(unsigned int UintNumber);/*unsigned int转QBytearray*/
 
     tcpTask *mTcpTask;
