@@ -1,26 +1,54 @@
 #include "tcptask.h"
 #include "qthread.h"
 
+#include <QBuffer>
 #include <QDir>
 #include <QImage>
 
 tcpTask::tcpTask()
 {
-    qDebug()<<"CilentDataRead_1 threadId: "<<QThread::currentThreadId();
+
 }
 
-void tcpTask::startTcpConnect(QString tcpServerIp, QString tcpServerPort)
+tcpTask::~tcpTask()
 {
-    TCP_Socket = new QTcpSocket(this);/*创建Socket对象*/
-    TCP_Socket->connectToHost(QHostAddress(tcpServerIp),tcpServerPort.toUShort());/*连接服务器*/
-    /* TCP连接发生错误 */
-    connect(TCP_Socket,&QTcpSocket::errorOccurred,this,[=](){emit tcpDisconnected_signal();});
+    TCP_Socket->disconnectFromHost();
+    TCP_Socket->close();
+    TCP_Socket->deleteLater();
+
+    tcpHeartBeatTimer->deleteLater();
+
+    qDebug() << "~tcpTask";
+}
+
+void tcpTask::startTcpConnect()
+{
+    TCP_Socket = new QTcpSocket(this);                              /*创建Socket对象*/
+    TCP_Socket->connectToHost(mTcpServerIp,mTcpServerPort);         /*连接服务器*/
+
+    /*tcp连接错误信号*/
+    connect(TCP_Socket,&QTcpSocket::errorOccurred,this,[=]()
+    {
+        QThread::currentThread()->quit();                           /* 请求退出线程 */
+        emit errorOccurred_signal();
+    });
     /*连接成功TCP_Socket发出信号*/
-    connect(TCP_Socket,&QTcpSocket::connected,this,[=](){emit tcpConnected_signal();});
+    connect(TCP_Socket,&QTcpSocket::connected,this,[=]()
+    {
+        /* 设置tcp心跳包定时器 */
+        tcpHeartBeatTimer = new QTimer();
+        tcpHeartBeatTimer->start(1000);
+        connect(tcpHeartBeatTimer,&QTimer::timeout,this,&tcpTask::on_keepTcpHeartBeat,Qt::UniqueConnection);
+
+        TCP_Socket->write(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SET_PC_DEVICE_FLAG,0,0));/* 发送一帧数据，告诉服务器为PC端 */
+        emit tcpConnected_signal();
+    });
     /*断开连接TCP_Socket发出信号*/
-    connect(TCP_Socket,&QTcpSocket::disconnected,this,[=](){emit tcpDisconnected_signal();});
+    connect(TCP_Socket,&QTcpSocket::disconnected,this,&tcpTask::on_tcpDisconnected);
     /*客户端接收到服务器发送的信息*/
     connect(TCP_Socket,&QTcpSocket::readyRead,this,&tcpTask::readData);
+
+    qDebug()<<"tcpTask threadId: "<<QThread::currentThreadId();
 }
 
 void tcpTask::sendTcpData(QByteArray data)
@@ -54,6 +82,20 @@ unsigned int tcpTask::qbyteArrayToUint(QByteArray dataBuffer)
     return value;
 }
 
+QByteArray tcpTask::setCmdFrameFormat(unsigned int dataLen,unsigned char cmd)
+{
+    QByteArray tempData;
+    tempData = uIntToQbyteArray(dataLen);/* 填充后面的数据长度 */
+    tempData.append(cmd);/* cmd */
+    return tempData;
+}
+
+void tcpTask::setTcpserverIpPort(QHostAddress ip, uint16_t port)
+{
+    mTcpServerIp = ip;
+    mTcpServerPort = port;
+}
+
 void tcpTask::setBindCameraDevice(QByteArray cameraID)
 {
     bindCameraDevice = cameraID;
@@ -61,185 +103,234 @@ void tcpTask::setBindCameraDevice(QByteArray cameraID)
 
 void tcpTask::readData()
 {
-    QByteArray receiveData = TCP_Socket->readAll();
-
-    static QByteArray allRecData;/* 保存所有的接收数据 */
-    static QByteArray picName;
-    static unsigned tcpDataLen = 0;
-    static unsigned char cmd = 0;
-    static bool recNextData = false;
-
-    static QList<QByteArray> onlineDeviceList;
-    allRecData += receiveData;/* 保存客户端发送来的数据 */
-    if(recNextData == true)/* 判断是否一个数据帧的数据还没有接收完毕 */
+    static QByteArray receiveData;
+    receiveData += TCP_Socket->readAll();
+    for(uint32_t i=0;i<receiveData.size();)
     {
-        if(allRecData.size() >tcpDataLen)/* 接收总数大于数据长度了，可以开始解析数据了 */
+        if(0xAA == (uint8_t)receiveData.at(i) && (receiveData.size() - i >= 8))         /* 确认数据帧头同时能得到数据长度 */
         {
-            recNextData = false;
-        }
-        else
-        {
-            return;/* 数据不够继续接受 */
-        }
-    }
-    if(allRecData.size() < 4)/* 接收的数据小于能够计算的数据长度字节数4，即不能得到后面的数据长度 */
-    {
-        return;/* 退出 */
-    }
-    else
-    {
-        /* TCP传输使命必达，此时前四个字节保存后面要发送数据长度 */
-        //qDebug() << "receiveData = " << receiveData;
-        /* 计算一次数据长度 */
-        tcpDataLen =qbyteArrayToUint(allRecData.mid(0,4));/* 得到数据长度 */
-
-        while(allRecData.size() >tcpDataLen - 1)/* 剩余长度大于数据长度，可以做处理 */
-        {
-            allRecData.remove(0,4);/* 删除携带的数据长度字段 */
-            cmd =allRecData.at(0);/* 得到当前数据帧的功能 */
-            allRecData.remove(0,1);/* 删除cmd字段 */
-            /* 剩下数据帧的内容全部为数据 */
-
-            switch(cmd)/* 根据不同的功能进行处理 */
+            uint32_t dataLen = (uint8_t)receiveData.at(i+4) | (uint8_t)receiveData.at(i+5)<<8 | (uint8_t)receiveData.at(i+6)<<16 | (uint8_t)receiveData.at(i+7)<<24;
+            if(receiveData.size() - i >= 8+dataLen+1)                                   /* 能都得到整个帧的数据长度 */
             {
-                case EMPTY:/* 服务器没有对应的数据 */
+                if(0xBB == (uint8_t)receiveData.at(i+8+dataLen))                        /* 确认数据帧尾 */
                 {
-                    emit pictureDownload_signal(PICTURE_EMPTY);
-                    break;
+                    frameDataAnalysis(receiveData.mid(i,9+dataLen));                    /* 分析帧的数据 */
+                    receiveData = receiveData.mid(i+9+dataLen,receiveData.size() - i - 9 - dataLen);
+                    i = 0;
+                    if(0 == receiveData.size())break;
+                    continue;
                 }
-                case PICTURE_TO_CLIENT_END:/* 服务器没有对应的数据 */
-                {
-                    emit pictureDownload_signal(OK);
-                    break;
-                }
-                case CAMERA_TAKE_PICTURE_DONE:/* 拍照完成命令 */
-                {
-                    emit takePictureDone_signal();
-                    break;
-                }
-                case CLEAR_SERVER_CACHE_DONE:/* 服务器清除缓存完成 */
-                {
-                    emit tcpServerCacheClearDone_signal();
-                    break;
-                }
-                case PICTURE_TO_CLIENT_NAME:/* 接收图片名称 */
-                {
-                    picName = allRecData.mid(0,tcpDataLen - 1);
-                    allRecData.remove(0,tcpDataLen - 1);
-                    emit appLogMessage_signal("正在接收的图片:" + picName);
-                    break;
-                }
-                case PICTURE_TO_CLIENT_DATA:/* 接收图片数据 */
-                {
-                    /* 保存图像 */
-                    if(!saveDateFileName.isEmpty())
-                    {
-                        QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片";//
-                        QDir *videoDir;
-                        videoDir = new QDir(picPath);
-                        if(!videoDir->exists())/* 查找是否存在视频文件 */
-                        {
-                            /* 不存在就创建 */
-                            bool ismkdir = videoDir->mkdir(picPath);
-                            if(!ismkdir)
-                                qDebug() << "创建文件夹失败";
-                            else
-                                qDebug() << "创建文件夹成功";
-                        }
-                        delete videoDir;
-                        picPath += "/" + bindCameraDevice;
-                        videoDir = new QDir(picPath);
-                        if(!videoDir->exists())/* 查找是否存在视频文件 */
-                        {
-                            /* 不存在就创建 */
-                            bool ismkdir = videoDir->mkdir(picPath);
-                            if(!ismkdir)
-                                qDebug() << "创建文件夹失败";
-                            else
-                                qDebug() << "创建文件夹成功";
-                        }
-                        delete videoDir;
-
-                        picPath += "/" + saveDateFileName;
-                        videoDir = new QDir(picPath);
-                        if(!videoDir->exists())/* 查找是否存在视频文件 */
-                        {
-                            /* 不存在就创建 */
-                            bool ismkdir = videoDir->mkdir(picPath);
-                            if(!ismkdir)
-                                qDebug() << "创建文件夹失败";
-                            else
-                                qDebug() << "创建文件夹成功";
-                        }
-                        delete videoDir;
-                        videoDir = NULL;
-
-                        picPath += "/" + picName;
-                        QFile *RecFile = new QFile(picPath);
-                        RecFile->open(QFile::WriteOnly);
-                        RecFile->write(allRecData.mid(0,tcpDataLen - 1));
-                        RecFile->close();
-                        RecFile->deleteLater();
-                        delete RecFile;
-                        RecFile = NULL;
-                        emit appLogMessage_signal("接收完毕");
-                        emit pictureData_signal(allRecData.mid(0,tcpDataLen - 1));/* 发送图片到主界面显示 */
-                    }
-                    allRecData.remove(0,tcpDataLen - 1);
-                    break;
-                }
-                case PICTURE_ERROR:/* 设备那边遇到错误 */
-                {
-                    emit pictureError_signal();
-                    break;
-                }
-                case ONLINE_CAMERA_DEVICE_ID_TO_CLIENT:/* 接受在线的摄像头ID列表 */
-                {
-                    onlineDeviceList.append(allRecData.mid(0,tcpDataLen - 1));//
-                    allRecData.remove(0,tcpDataLen - 1);
-                    break;
-                }
-                case ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END:/* 摄像头列表接受完毕 */
-                {
-                    emit onlineDeviceName_singal(onlineDeviceList);
-                    onlineDeviceList.clear();
-                    break;
-                }
-                case CLIENT_BIND_CAMERA_SUCCESS:/* 摄像头绑定成功 */
-                {
-                    emit cameraBindOK_signal();
-                    break;
-                }
-                case CLIENT_BIND_CAMERA_FAIL:/* 摄像头绑定失败 */
-                {
-                    emit cameraBindFail_signal();
-                    break;
-                }
-                case OPEN_MOTO_SUCCESS_CMD:/* 打开电机成功 */
-                {
-                    emit cameraOpenMotoSuccess_signal();
-                    break;
-                }
-                default:
-                    qDebug() << allRecData.mid(0,tcpDataLen - 1);
-                    break;
-            }
-            if(allRecData.size() < 4)/* 接收的数据小于能够计算的数据长度字节数4，即不能得到后面的数据长度 */
-            {
-                return;/* 退出 */
-            }
-            else
-            {
-                tcpDataLen = qbyteArrayToUint(allRecData.mid(0,4));/* 得到数据长度 */
-                qDebug() << tcpDataLen;
-
-                if(tcpDataLen > allRecData.size())/* 剩余的数据不够数据长度，还没接收完毕 */
-                {
-                    recNextData = true;
-                    return;
-                }
-                /* 接下来就会进入while的条件判断 */
             }
         }
+        i++;
     }
 }
+/* 发送tcp心跳包槽函数 */
+void tcpTask::on_keepTcpHeartBeat()
+{
+    TCP_Socket->write(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,HERAT_BEAT_PACK,0,0));
+}
+
+void tcpTask::on_tcpDisconnected()
+{
+    qDebug() << "tcp断开连接";
+    QThread::currentThread()->quit();                           /* 请求退出线程 */
+}
+/* 给要发送的tcp数据封帧 */
+QByteArray tcpTask::packTcpDataFrame(uint8_t charactar,uint8_t target, uint8_t cmd, uint32_t dataLen, QByteArray data)
+{
+    /* 0xAA byte1 byte2 byte3  byte4 byte5 byte6 byte7   byteN   0xBB */
+    /* 帧头  角色   目标   作用       长度（四字节）          数据载荷   帧尾 */
+    QByteArray tempData;
+    uint32_t cnt = 0;
+    tempData.resize(4 + 4);
+    tempData[cnt++] = 0xAA;                 /* 帧头 */
+    tempData[cnt++] = charactar;            /* 角色 */
+    tempData[cnt++] = target;               /* 目标 */
+    tempData[cnt++] = cmd;                  /* 作用 */
+    tempData[cnt++] = dataLen;              /* 长度 */
+    tempData[cnt++] = dataLen>>8;
+    tempData[cnt++] = dataLen>>16;
+    tempData[cnt++] = dataLen>>24;
+    tempData.append(data);
+    tempData.append((char)0xBB);
+    return tempData;
+}
+
+void tcpTask::frameDataAnalysis(QByteArray data)
+{
+    switch(data.at(2))
+    {
+        case SERVER_TO_CLIENT:                      /* 服务器到pc */
+        {
+            serverToClient(data);
+            break;
+        }
+        case CAMER_TO_PC:                           /* camera到pc */
+        {
+            cameraToPcDeal(data);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void tcpTask::serverToClient(QByteArray data)
+{
+    switch(data.at(3))
+    {
+        case CAMERA_ID:                     /* 摄像头ID */
+        {
+            qDebug()<<"收到一个在线的摄像头ID";
+            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
+            QByteArray cameraId = data.mid(8,dataLen);
+            deviceIdList.append(cameraId);
+            break;
+        }
+        case SEND_CAMERA_ID_END:            /* 摄像头ID接收完毕 */
+        {
+            qDebug()<<"接收到所有的摄像头ID";
+            emit onlineDeviceName_singal(deviceIdList);
+            deviceIdList.clear();
+            break;
+        }
+        case CLIENT_BIND_CAMERA_OK:         /* 绑定成功 */
+        {
+            emit cameraBindOK_signal();
+            break;
+        }
+        case CLIENT_DISBIND_CAMERA_OK:      /* 解除绑定成功 */
+        {
+            emit cameraDisbindOK_signal();
+            break;
+        }
+        case DOWNLOAD_PICTURE_END:          /* 请求的图片数据下载完毕 */
+        {
+            emit downLoadPictureSuccess_signal();
+            emit appLogMessage_signal("图片下载完成!");
+            break;
+        }
+        case DOWNLOAD_PICTURE_EMPTY:        /* 请求的图片数据为空 */
+        {
+            emit appLogMessage_signal("服务器中未找到数据!");
+            break;
+        }
+        case PICTURE_TO_PC_NAME:            /* 请求的图片的名字 */
+        {
+            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
+            tempSavePicTureName = data.mid(8,dataLen);
+            break;
+        }
+        case PICTURE_TO_PC_DATA:            /* 请求的图片的数据 */
+        {
+            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
+            /* 保存图像 */
+            if(!saveDateFileName.isEmpty())
+            {
+                QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片";
+                QDir *videoDir;
+                videoDir = new QDir(picPath);
+                if(!videoDir->exists()) videoDir->mkdir(picPath);/* 不存在就创建 */
+                delete videoDir;
+                picPath += "/" + bindCameraDevice;
+                videoDir = new QDir(picPath);
+                if(!videoDir->exists()) videoDir->mkdir(picPath);/* 不存在就创建 */
+                delete videoDir;
+
+                picPath += "/" + saveDateFileName;
+                videoDir = new QDir(picPath);
+                if(!videoDir->exists()) videoDir->mkdir(picPath);/* 不存在就创建 */
+                delete videoDir;
+                videoDir = NULL;
+
+                picPath += "/" + tempSavePicTureName;
+                QFile *RecFile = new QFile(picPath);
+                RecFile->open(QFile::WriteOnly);
+                RecFile->write(data.mid(8,dataLen));
+                RecFile->close();
+                delete RecFile;
+                RecFile = NULL;
+            }
+            break;
+        }
+        case CLEAR_SERVER_CACHE_DONE:
+        {
+            emit appLogMessage_signal("服务器所有图片数据已删除!");
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void tcpTask::cameraToPcDeal(QByteArray data)
+{
+    qDebug() << "接收的data size = " << data.size();
+    switch((uint8_t)data.at(3))
+    {
+        case PICTURE_DATA_PACK:
+        {
+            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
+            tempPicData += data.mid(8,dataLen);
+            tempPicDataLen += dataLen;
+            float percent = tempPicDataLen/3840000.0 * 100;
+            QByteArray tempData = "接收进度:" + QByteArray::number(percent) + "%";
+            emit appLogMessage_signal(tempData);
+            break;
+        }
+        case PICTURE_DATA_PACK_INDEX:
+        {
+            break;
+        }
+        case TAKE_RGB_PICTURE_END:
+        {
+            QByteArray tempData = "接收到图片结束,总大小为3840000byte";
+            emit appLogMessage_signal(tempData);
+            QImage image(reinterpret_cast<const uchar*>(tempPicData.constData()), 1600, 1200, QImage::Format_RGB16);
+            QByteArray jpegData;
+            QBuffer buffer(&jpegData);
+            buffer.open(QIODevice::WriteOnly);
+
+            // 将图像保存为JPEG格式
+            image.save(&buffer, "JPEG", 100);
+            sendTcpData(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SAVE_PC_PICTURE,buffer.buffer().size(),buffer.buffer()));
+            emit pictureData_signal(buffer.buffer());           /* 主界面预览 */
+
+            tempPicData.clear();
+            tempPicDataLen = 0;
+
+            break;
+        }
+        case TAKE_PICTURE_END:
+        {
+            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
+            emit pictureData_signal(data.mid(8,dataLen));
+            sendTcpData(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SAVE_PC_PICTURE,dataLen,data.mid(8,dataLen)));
+            QByteArray tempData = "接收到图片完成";
+            emit appLogMessage_signal(tempData);
+            break;
+        }
+        case SET_RECORD_TIME_SUCCESS:
+        {
+            emit appLogMessage_signal("固定定时设置成功!");
+            break;
+        }
+        case SET_SCHEDULED_TIME_CMD_SUCCESS:
+        {
+            emit appLogMessage_signal("间隔定时设置成功!");
+            break;
+        }
+        case OPEN_MOTO_SUCCESS_CMD:
+        {
+            emit appLogMessage_signal("电机打开成功!");
+            break;
+        }
+        default:
+            break;
+    }
+
+
+}
+
+

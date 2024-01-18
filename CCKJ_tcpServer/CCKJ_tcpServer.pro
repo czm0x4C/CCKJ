@@ -11,10 +11,12 @@ CONFIG += c++17
 
 SOURCES += \
     main.cpp \
+    mytcpsocket.cpp \
     tcp_serverwidget.cpp \
     tcp_serverworker.cpp
 
 HEADERS += \
+    mytcpsocket.h \
     tcp_serverwidget.h \
     tcp_serverworker.h
 

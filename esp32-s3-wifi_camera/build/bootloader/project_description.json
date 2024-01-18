@@ -1,0 +1,25 @@
+{
+    "project_name":       "bootloader",
+    "project_path":       "F:/ESPIDF/esp-idf/components/bootloader/subproject",
+    "build_dir":          "D:/CCKJ/esp32-s3-wifi_camera/build/bootloader",
+    "config_file":        "D:/CCKJ/esp32-s3-wifi_camera/sdkconfig",
+    "config_defaults":    "",
+    "bootloader_elf":     "",
+    "app_elf":            "bootloader.elf",
+    "app_bin":            "bootloader.bin",
+    "git_revision":       "v5.0.1-dirty",
+    "target":             "esp32s3",
+    "rev":                "",
+    "min_rev":            "0",
+    "max_rev":            "99",
+    "phy_data_partition": "",
+    "monitor_baud" :      "115200",
+    "monitor_toolprefix": "xtensa-esp32s3-elf-",
+    "config_environment" : {
+        "COMPONENT_KCONFIGS" : "F:/ESPIDF/esp-idf/components/efuse/Kconfig;F:/ESPIDF/esp-idf/components/esp_common/Kconfig;F:/ESPIDF/esp-idf/components/esp_hw_support/Kconfig;F:/ESPIDF/esp-idf/components/esp_system/Kconfig;F:/ESPIDF/esp-idf/components/freertos/Kconfig;F:/ESPIDF/esp-idf/components/hal/Kconfig;F:/ESPIDF/esp-idf/components/log/Kconfig;F:/ESPIDF/esp-idf/components/newlib/Kconfig;F:/ESPIDF/esp-idf/components/spi_flash/Kconfig",
+        "COMPONENT_KCONFIGS_PROJBUILD" : "F:/ESPIDF/esp-idf/components/bootloader/Kconfig.projbuild;F:/ESPIDF/esp-idf/components/esp_app_format/Kconfig.projbuild;F:/ESPIDF/esp-idf/components/esp_rom/Kconfig.projbuild;F:/ESPIDF/esp-idf/components/esptool_py/Kconfig.projbuild;F:/ESPIDF/esp-idf/components/partition_table/Kconfig.projbuild"
+    },
+    "build_components" : [ "bootloader", "bootloader_support", "efuse", "esp_app_format", "esp_common", "esp_hw_support", "esp_rom", "esp_system", "esptool_py", "freertos", "hal", "log", "main", "micro-ecc", "newlib", "partition_table", "soc", "spi_flash", "xtensa", "" ],
+    "build_component_paths" : [ "F:/ESPIDF/esp-idf/components/bootloader", "F:/ESPIDF/esp-idf/components/bootloader_support", "F:/ESPIDF/esp-idf/components/efuse", "F:/ESPIDF/esp-idf/components/esp_app_format", "F:/ESPIDF/esp-idf/components/esp_common", "F:/ESPIDF/esp-idf/components/esp_hw_support", "F:/ESPIDF/esp-idf/components/esp_rom", "F:/ESPIDF/esp-idf/components/esp_system", "F:/ESPIDF/esp-idf/components/esptool_py", "F:/ESPIDF/esp-idf/components/freertos", "F:/ESPIDF/esp-idf/components/hal", "F:/ESPIDF/esp-idf/components/log", "F:/ESPIDF/esp-idf/components/bootloader/subproject/main", "F:/ESPIDF/esp-idf/components/bootloader/subproject/components/micro-ecc", "F:/ESPIDF/esp-idf/components/newlib", "F:/ESPIDF/esp-idf/components/partition_table", "F:/ESPIDF/esp-idf/components/soc", "F:/ESPIDF/esp-idf/components/spi_flash", "F:/ESPIDF/esp-idf/components/xtensa", "" ],
+    "debug_prefix_map_gdbinit": ""
+}

@@ -59,7 +59,6 @@ void SerialPortThread::DataRead()
     {
         qDebug("1 写入数据不完整");
     }
-
     QByteArray bufferData;
     unsigned int nowBufferSize = bufferObj->ValidDataLen(serialPortBuffer);
     bufferObj->ReadBytes(serialPortBuffer,&bufferData,nowBufferSize);/*读取缓冲区中的所有数据*/
@@ -86,6 +85,8 @@ void SerialPortThread::DataRead()
                             {
                                 case CMD_LOG_MESSAGE:
                                 {
+//                                    qDebug() << frameData.mid(4,frameData.at(3));
+//                                    qDebug() << frameData.toHex(' ').toUpper();
                                     emit appLogMessage_signal(frameData.mid(4,frameData.at(3)));
                                     break;
                                 }

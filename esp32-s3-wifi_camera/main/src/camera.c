@@ -1050,16 +1050,12 @@ void appInit(void)
     else
     {
         ESP_LOGI("TCP", "Successfully connected");
-        /* 此时已经连接上TCP服务器 */
-        // ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
 
         xTaskCreate(camera_task, "camera_task", 1024 * 60, NULL, 2, &cameraTaskHandle); 
 
         xTaskCreate(led_task, "led_task", 1024 * 10, NULL, 3, NULL); 
 
         xTaskCreate(tcpReceive_task, "tcpReceive_task", 1024 * 10, NULL, 3, NULL); 
-
-        // ESP_LOGI("TCP", "MEM = %ld",xPortGetFreeHeapSize()  );
         
         workFlag = 1;
     }

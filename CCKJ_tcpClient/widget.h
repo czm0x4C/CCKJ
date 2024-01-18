@@ -40,25 +40,14 @@ public:
 
     void windowsInit();
 
-    void windowSetEnable();
-
-    void windowSetDisable();
-
     void openEventSetting();
-
-    bool checkTcpServerIsOK();
 
     QByteArray uIntToQbyteArray(unsigned int uIntData);
 
     unsigned int qbyteArrayToUint(QByteArray dataBuffer);
 
-    QByteArray setCmdFrameFormat(unsigned int dataLen,unsigned char cmd);
-
-    QByteArray setDataFrameFormat(unsigned int dataLen,unsigned char cmd,QByteArray data);
-
-    QByteArray setUshortFrameFormat(unsigned int dataLen,unsigned char cmd,unsigned short data);
-
     QByteArray setSerialPortStringDataFormat(unsigned char frameHead,unsigned char frameAddress,unsigned char frameID,QByteArray data);
+
     QByteArray setSerialPortUshortDataFormat(unsigned char frameHead,unsigned char frameAddress,unsigned char frameID,unsigned short data);
 
 private slots:
@@ -71,7 +60,7 @@ private slots:
 
     void on_tcpConnectedSuccessfull();
 
-    void on_tcpDisconnected();
+    void on_errorOccurred();
 
     void on_showPicture(QByteArray picData);
 
@@ -79,19 +68,13 @@ private slots:
 
     void on_takePictureButton_clicked();
 
-    void on_readPictureDownLoadState(tcpTask::picDownloadState state);
-
     void on_setSavePathButton_clicked();
-
-    void on_keepTcpHeartBeat();
 
     void on_clearLocalCahePathButton_clicked();
 
     void on_clearServerCahePathButton_clicked();
 
     void on_takePicFinish();
-
-    void on_tcpServerCacheClearDone();
 
     void on_showLogMessage(QByteArray logMessage);
 
@@ -109,7 +92,7 @@ private slots:
 
     void on_cameraBindOK();
 
-    void on_cameraBindFail();
+    void on_cameraDisbindOK();
 
     void on_motoControlPushButton_clicked();
 
@@ -137,6 +120,19 @@ private slots:
 
     void on_scheduledTimeCheckBox_clicked();
 
+    void on_connectDeviceButton_clicked();
+
+    void on_disConnectDeviceButton_clicked();
+
+    void on_tcpScheduledTimeCheckBox_stateChanged(int arg1);
+
+    void on_scheduledTimeCheckBox_stateChanged(int arg1);
+
+    void on_tcpRecordCheckBox_stateChanged(int arg1);
+
+    void on_recordCheckBox_stateChanged(int arg1);
+
+    void on_downLoadPictureSuccess();
 signals:
 
     void tcpConnectToHost_signal(QString tcpServerIp,QString tcpServerPort);
@@ -165,16 +161,65 @@ protected:
     virtual void resizeEvent(QResizeEvent *event) override;
 
 private:
+    enum
+    {
+        /* 角色 */
+        DEVICE_LABEL_PC = 0x00,             /* 设备标签PC端 */
+        DEVICE_LABEL_CAMERA,                /* 设备标签CAMERA端 */
+        DEVICE_LABEL_SERVER,                /* 设备标签SERVER端 */
+        /* target */
+        PC_TO_SERVER,                       /* PC发SERVER */
+        PC_TO_CAMER,                        /* PC发CAMERA */
+        CAMER_TO_SERVER,                    /* CAMERA发SERVER */
+        CAMER_TO_PC,                        /* CAMERA发PC */
+        SERVER_TO_CLIENT,                   /* SERVER发CLIENT */
+        /* cmd */
+        HERAT_BEAT_PACK,                    /* 心跳包 */
+        SET_PC_DEVICE_FLAG,                 /* 设置PC标识 */
+        SET_CAMERA_DEVICE_FLAG,             /* 设置CAMERA标识 */
+        SET_CAMERA_DEVICE_ID,               /* 设置相机的ID */
+        GET_ONLINE_CAMERA_DEVICE_ID,        /* 请求所有连接的camera设备ID */
+        TAKE_PICTURE,                       /* 拍照命令 */
+        TAKE_PICTURE_END,                   /* 拍照结束 */
+        TAKE_PICTURE_ERROR,                 /* 拍照错误 */
+        CAMERA_ID,                          /* 相机ID */
+        SEND_CAMERA_ID_END,                 /* 发送相机ID结束 */
+        CLIENT_BIND_CAMERA,                 /* 客户端绑定相机 */
+        CLIENT_BIND_CAMERA_OK,              /* 客户端绑定相机成功 */
+        CLIENT_DISBIND_CAMERA,              /* 客户端解绑摄像头 */
+        CLIENT_DISBIND_CAMERA_OK,           /* 客户端解绑摄像头成功 */
+        CLIENT_EXIST_PICTURE_FILE_NAME,     /* 客户端存在的图片文件名称 */
+        CLIENT_EXIST_PICTURE_FILE_NAME_END, /* 客户端存在的图片文件名称发送结束 */
+        DOWNLOAD_PICTURE,                   /* 客户端请求下载图片数据 */
+        DOWNLOAD_PICTURE_END,               /* 客户端请求下载图片数据结束 */
+        DOWNLOAD_PICTURE_EMPTY,             /* 客户端请求下载图片的数据为空 */
+        PICTURE_TO_PC_NAME,                 /* 将图片名字发送到PC端 */
+        PICTURE_TO_PC_DATA,                 /* 将图像数据发送PC端 */
+        SET_RECORD_TIME,                    /* 设置定时时间 */
+        SET_RECORD_TIME_END,                /* 设置定时结束 */
+        SET_RECORD_TIME_SUCCESS,            /* 设置定时时间成功反馈 */
+        SET_SCHEDULED_TIME,                 /* 设置间隔定时时间 */
+        SET_SCHEDULED_TIME_CMD_SUCCESS,     /* 设置间隔定时时间成功反馈 */
+        SAVE_PC_PICTURE,                    /* 保存由PC端发来的图片 */
+        SET_TEMP_DEVICE_ID,                 /* 未绑定时，临时设置绑定ID */
+        CLEAR_SERVER_CACHE,                 /* 清除服务器上的图片缓存 */
+        CLEAR_SERVER_CACHE_DONE,            /* 缓存清除完毕 */
+        OPEN_MOTO_CMD,                      /* 打开水泵的命令 */
+        OPEN_MOTO_SUCCESS_CMD,              /* 打开成功反馈 */
+        OPEN_MOTO_FAIL_CMD,                 /* 打开失败反馈 */
+        PICTURE_DATA_PACK,                  /* 图像数据包 */
+        PICTURE_DATA_PACK_INDEX,			/* 图像数据包编号 */
+        TAKE_RGB_PICTURE_END,               /* 拍摄RGB图片结束 */
+        SET_LIED_BRIGHTNESS_CMD,
+        SET_TAKE_PICTURE_DELAY_TIME_CMD
+    };
+
+
     Ui::Widget *ui;
 
     QList<QWidget*> m_Widget;			    //存储所有的子控件
 
     QMap<QWidget*, QRect> m_WidgetRect;		//保存每个子控件的初始大小
-
-    QList<QWidget*> m1_Widget;			    //存储所有的子控件
-
-    QMap<QWidget*, QRect> m1_WidgetRect;		//保存每个子控件的初始大小
-
 
     QByteArray UintToByteArray(unsigned int UintNumber);/*unsigned int转QBytearray*/
 
@@ -196,59 +241,45 @@ private:
 
     SerialPortThread *serialPortTask;
 
-    bool isTcpOpen = false;
+    QByteArray bindCameraDeviceID;          /* 保存当前绑定的设备ID */
 
-    QByteArray bindCameraDevice;
+    bool isBindFinish = false;              /* 保存当前的设备是否绑定 */
 
-    bool isBindFinish = false;
+    bool isSerialPortOpen = false;          /* 判断串口是否打开 false：未打开 true：打开 */
 
     bool copyDirectoryFiles(const QString fromDir, const QString toDir, bool coverFileIfExist);
-
-    enum
-    {
-        HERAT_BEAT_PACK = 0x00,
-        PICTURE_DATA,
-        DOWNLOAD_PICTURE,
-        EMPTY,
-        PICTURE_TO_CLIENT_NAME,
-        PICTURE_TO_CLIENT_DATA,
-        PICTURE_TO_CLIENT_END,
-        TAKE_PICTURE,
-        SET_CAMERA_DEVICE_FLAG,
-        SET_CAMERA_DEVICE_ID,
-        CAMERA_TAKE_PICTURE,
-        CAMERA_TAKE_PICTURE_DONE,
-        CLEAR_SERVER_CACHE,
-        CLEAR_SERVER_CACHE_DONE,
-        CLIENT_PICTURE_FILE_NAME,
-        PICTURE_ERROR,
-        GET_ONLINE_DEVICE,
-        SET_PC_DEVICE_FLAG,
-        ONLINE_CAMERA_DEVICE_ID_TO_CLIENT,
-        ONLINE_CAMERA_DEVICE_LIST_TO_CLIENT_END,
-        CLIENT_BIND_CAMERA,
-        CLIENT_DISBIND_CAMERA,
-        CLIENT_BIND_CAMERA_SUCCESS,
-        CLIENT_BIND_CAMERA_FAIL,
-        OPEN_MOTO_CMD,          /* 打开水泵的命令 */
-        OPEN_MOTO_SUCCESS_CMD,  /* 打开成功反馈 */
-        OPEN_MOTO_FAIL_CMD,     /* 打开失败反馈 */
-        SET_RECORD_TIME_CMD,    /* 设置定时时间 */
-        SET_RECORD_TIME_DONE_CMD,/* 设置定时结束 */
-        SET_SCHEDULED_TIME_CMD, /* 设置间隔定时时间 */
-        SET_RECORD_TIME_SUCCESS_CMD, /* 设置定时时间成功反馈 */
-        SET_LIED_BRIGHTNESS_CMD,        /* 设置闪光灯的亮度 */
-        SET_TAKE_PICTURE_DELAY_TIME_CMD /* 设置拍照延时 */
-    };
 
     bool isTcpThreadAlive = false;
 
     bool isTcpBackFinish = true;
+
+    QByteArray chooseDate;                  /* 保存请求的下载的时间 */
 
     void SerialPortSearch();
 
     void comBoxClick();
 
     void sendExistPictureFileToServer();
+
+    QByteArray packTcpDataFrame(uint8_t charactar,uint8_t target, uint8_t cmd, uint32_t dataLen, QByteArray data); /* 给发送的TCP数据封帧 */
+
+    bool checkTcpIsConnected();
+
+    void hideTcpSetScheduledTimingGroup();
+
+    void showTcpSetScheduledTimingGroup();
+
+    void hideTcpSetRecordTimingGroup();
+
+    void showTcpSetRecordTimingGroup();
+
+    void hideSetScheduledTimingGroup();
+
+    void showSetScheduledTimingGroup();
+
+    void showSetRecordTimingGroup();
+
+    void hideSetRecordTimingGroup();
+
 };
 #endif // WIDGET_H

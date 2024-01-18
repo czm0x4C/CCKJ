@@ -23,47 +23,24 @@ Widget::Widget(QWidget *parent)
 
     windowsInit();
 
-    ui->logShowTextEdit->setReadOnly(true);/* 设置不可编辑 */
     connect(this,&Widget::appLogMessage_signal,this,&Widget::on_showLogMessage);
     connect(ui->logShowTextEdit,&QTextEdit::textChanged,this,[=]()
     {
         ui->logShowTextEdit->moveCursor(QTextCursor::End);
     });
-    emit appLogMessage_signal("应用启动");
 
     /*调试时用的默认IP和PORT*/
     ui->TCP_Server_IP_LineEdit->setText("127.0.0.1");
     ui->TCP_Server_Port_LineEdit->setText("8000");
-    openEventSetting();
 
+    openEventSetting();                             /* 读取注册表保存的信息 */
 
-    this->setWindowTitle("透明度采样软件V1.0");
-    ui->CloseTCPButton->setEnabled(false);          /*未连接时，关闭连接按键为不可用状态*/
-
-    listmodel = new QStringListModel;
-    connect(ui->listView,&QListView::clicked, this, &Widget::on_listViewClicked);
-
-//    ui->selectDateEdit->setDateTime(QDateTime::currentDateTime());
-//    ui->recordTimeEdit->setTime(QTime::currentTime());
-//    ui->tcpRecordTimeEdit->setTime(QTime::currentTime());
-
-    connect(ui->deviceComboBox,&myComboBox::Clicked_signals,this,&Widget::comBoxClick);
-
-    //获取所有的控件
-    m_Widget = this->findChildren<QWidget*>(QString(), Qt::FindChildrenRecursively);
-//    m1_Widget = this->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
-//    m_Widget = this->findChildren<QWidget*>(QString());
-    //遍历控件获取大小和位置
-    foreach(auto widget, m_Widget)
-    {
-        m_WidgetRect.insert(widget, QRect(widget->x(), widget->y(), widget->width(), widget->height()));
-    }
-
+    qDebug()<<"main threadId: "<<QThread::currentThreadId();
 }
 
 Widget::~Widget()
 {
-
+    /* 保存窗口上的一些信息到注册表内 */
     userSetting->setValue("userData/saveTcpIp",ui->TCP_Server_IP_LineEdit->text());
     userSetting->setValue("userData/saveTcpPort",ui->TCP_Server_Port_LineEdit->text());
 
@@ -72,28 +49,105 @@ Widget::~Widget()
 
 void Widget::windowsInit()
 {
-    ui->imageSizeComboBox->addItem("QVGA(320*240)");                  /* 为图片大小添加大小选项 */
+    this->setWindowTitle("透明度采样软件V1.0");
+
+    hideTcpSetScheduledTimingGroup();
+
+    hideTcpSetRecordTimingGroup();
+
+    hideSetScheduledTimingGroup();
+
+    hideSetRecordTimingGroup();
+
+    ui->logShowTextEdit->setReadOnly(true);                             /* 图片显示label设置不可编辑 */
+
+    ui->imageSizeComboBox->addItem("QVGA(320*240)");                    /* 为图片大小添加大小选项 */
     ui->imageSizeComboBox->addItem("VGA(680*480)");
     ui->imageSizeComboBox->addItem("UXGA(1600*1200)");
     ui->imageSizeComboBox->addItem("QSXGA(2560*1920)");
-    ui->imageSizeComboBox->setCurrentIndex(3);                        /* 设置当前默认选项 */
+    ui->imageSizeComboBox->setCurrentIndex(3);                          /* 设置当前默认选项 */
 
-    for(int i=0;i<60;i++)
+    for(int i=0;i<60;i++)                                               /* 图片质量的选择窗口 */
     {
         ui->imageQualityComboBox->addItem(QString::number(i));
     }
     ui->imageQualityComboBox->setCurrentIndex(10);
+
+    ui->CloseTCPButton->setEnabled(false);                              /* 未连接时，关闭连接按键为不可用状态 */
+    ui->disConnectDeviceButton->setEnabled(false);                      /* 断开连接相机按键不可用 */
+    listmodel = new QStringListModel;                                   /* 绑定文件夹显示的信号和槽 */
+    connect(ui->listView,&QListView::clicked, this, &Widget::on_listViewClicked);
+
+    connect(ui->deviceComboBox,&myComboBox::Clicked_signals,this,&Widget::comBoxClick);
+
+    /* 设置日期选择框 */
+
+    uint32_t currentYear = QDateTime::currentDateTime().date().year();
+    uint32_t currentMonth = QDateTime::currentDateTime().date().month();
+    uint32_t currentDay = QDateTime::currentDateTime().date().day();
+    uint32_t currentHour = QDateTime::currentDateTime().time().hour();
+    uint32_t currentMinute = QDateTime::currentDateTime().time().minute();
+    qDebug() << currentYear << currentMonth <<currentDay;
+
+    ui->tcpDownLoadYearComboBox->clear();
+    for(uint32_t i=currentYear-10;i<currentYear+10;i++)
+    {
+        ui->tcpDownLoadYearComboBox->addItem(QString::number(i));
+    }
+    ui->tcpDownLoadYearComboBox->setCurrentIndex(10);
+
+    ui->tcpDownLoadMouthComboBox->clear();
+    for(uint32_t i=0;i<12;i++)
+    {
+        ui->tcpDownLoadMouthComboBox->addItem(QString::number(i+1));
+    }
+    ui->tcpDownLoadMouthComboBox->setCurrentIndex(currentMonth-1);
+
+    ui->tcpDownLoadDayComboBox->clear();
+    for(uint32_t i=0;i<31;i++)
+    {
+        ui->tcpDownLoadDayComboBox->addItem(QString::number(i+1));
+    }
+    ui->tcpDownLoadDayComboBox->setCurrentIndex(currentDay-1);
+
+    ui->hourTimingComboBox->clear();
+    for(uint32_t i=0;i<24;i++)
+    {
+        ui->hourTimingComboBox->addItem(QString::number(i+1));
+    }
+    ui->hourTimingComboBox->setCurrentIndex(currentHour-1);
+
+    ui->minuteTimingComboBox->clear();
+    for(uint32_t i=0;i<60;i++)
+    {
+        ui->minuteTimingComboBox->addItem(QString::number(i));
+    }
+    ui->minuteTimingComboBox->setCurrentIndex(currentMinute);
+
+    ui->tcpHourTimingComboBox->clear();
+    for(uint32_t i=0;i<24;i++)
+    {
+        ui->tcpHourTimingComboBox->addItem(QString::number(i+1));
+    }
+    ui->tcpHourTimingComboBox->setCurrentIndex(currentHour-1);
+
+    ui->tcpMinuteTimingComboBox->clear();
+    for(uint32_t i=0;i<60;i++)
+    {
+        ui->tcpMinuteTimingComboBox->addItem(QString::number(i));
+    }
+    ui->tcpMinuteTimingComboBox->setCurrentIndex(currentMinute);
+
+
+    //获取所有的控件，为窗口缩放做准备
+    m_Widget = this->findChildren<QWidget*>(QString(), Qt::FindChildrenRecursively);
+    //遍历控件获取大小和位置
+    foreach(auto widget, m_Widget)
+    {
+        m_WidgetRect.insert(widget, QRect(widget->x(), widget->y(), widget->width(), widget->height()));
+    }
 }
-/* 窗口使能 */
-void Widget::windowSetEnable()
-{
-    this->setEnabled(true);
-}
-/* 窗口失能 */
-void Widget::windowSetDisable()
-{
-    this->setDisabled(true);
-}
+
 /* 程序注册表设置 */
 void Widget::openEventSetting()
 {
@@ -133,18 +187,7 @@ void Widget::openEventSetting()
 
 }
 
-bool Widget::checkTcpServerIsOK()
-{
-    if(!isTcpOpen)
-    {
-        emit appLogMessage_signal("请检查服务器是否连接");
-        return false;
-    }
-    else
-    {
-        return true;
-    }
-}
+
 /* unsigned int 转 QByteArray */
 QByteArray Widget::uIntToQbyteArray(unsigned int uIntData)
 {
@@ -165,34 +208,6 @@ unsigned int Widget::qbyteArrayToUint(QByteArray dataBuffer)
         value |= ((unsigned char)dataBuffer.at(i)<< (i*8));
     }
     return value;
-}
-/* 发送命令的数据帧 */
-QByteArray Widget::setCmdFrameFormat(unsigned int dataLen,unsigned char cmd)
-{
-    QByteArray tempData;
-    tempData = uIntToQbyteArray(dataLen);/* 填充后面的数据长度 */
-    tempData.append(cmd);/* cmd */
-    return tempData;
-}
-/* 发送数据帧的数据帧 */
-QByteArray Widget::setDataFrameFormat(unsigned int dataLen, unsigned char cmd, QByteArray data)
-{
-    QByteArray tempData;
-    tempData = uIntToQbyteArray(dataLen);/* 填充后面的数据长度 */
-    tempData.append(cmd);/* cmd */
-    tempData += data;
-    return tempData;
-}
-
-QByteArray Widget::setUshortFrameFormat(unsigned int dataLen, unsigned char cmd, unsigned short data)
-{
-    QByteArray tempData;
-    tempData = uIntToQbyteArray(dataLen);/* 填充后面的数据长度 */
-    tempData.append(cmd);/* cmd */
-    tempData.resize(tempData.size()+2);
-    tempData[5] = data;
-    tempData[6] = data>>8;
-    return tempData;
 }
 /* 设置串口发送一个字符串的帧 */
 QByteArray Widget::setSerialPortStringDataFormat(unsigned char frameHead, unsigned char frameAddress, unsigned char frameID, QByteArray data)
@@ -273,28 +288,37 @@ void Widget::on_ConnectTCPtButton_clicked()
 
     mTcpTask = new tcpTask;
     mTcpThread = new QThread;
-    mTcpTask->moveToThread(mTcpThread); /* 创建TCP通信的子线程 */
-    mTcpThread->start();
-    connect(mTcpTask,&tcpTask::tcpConnected_signal,this,&Widget::on_tcpConnectedSuccessfull,Qt::UniqueConnection);   /* 子线程tcp连接成功通知主线程 */
-    connect(mTcpTask,&tcpTask::tcpDisconnected_signal,this,&Widget::on_tcpDisconnected,Qt::UniqueConnection);        /* 子线程tcp断开连接通知主线程 */
-    connect(mTcpTask,&tcpTask::pictureData_signal,this,&Widget::on_showPicture,Qt::UniqueConnection);                /* 子线程接收到发送到主线程显示 */
-    connect(mTcpTask,&tcpTask::pictureDownload_signal,this,&Widget::on_readPictureDownLoadState,Qt::UniqueConnection);/* 子线程告知主线程图片下载状态 */
-    connect(mTcpTask,&tcpTask::takePictureDone_signal,this,&Widget::on_takePicFinish,Qt::UniqueConnection);          /* 子线程告知主线程拍照完成 */
-    connect(mTcpTask,&tcpTask::tcpServerCacheClearDone_signal,this,&Widget::on_tcpServerCacheClearDone,Qt::UniqueConnection);/* 子线程通知主线程服务器的缓存清除完毕 */
-    connect(mTcpTask,&tcpTask::appLogMessage_signal,this,&Widget::on_showLogMessage,Qt::UniqueConnection);           /* 子线程输出log信息到主线程 */
-    connect(mTcpTask,&tcpTask::pictureError_signal,this,&Widget::on_takePictureError,Qt::UniqueConnection);           /* 子线程发送拍摄图像错误信号到主线程 */
+    mTcpTask->setTcpserverIpPort(QHostAddress(TCP_Server_IP),TCP_Server_Port.toUShort());                               /* 设置连接服务器的IP和port */
+    mTcpTask->moveToThread(mTcpThread);                                                                                 /* 创建TCP通信的子线程 */
+    mTcpThread->start();                                                                                                /* 启动线程 */
+    connect(mTcpThread, &QThread::started, mTcpTask,&tcpTask::startTcpConnect);                                         /* 连接线程启动信号，建立连接 */
+
+    connect(mTcpTask,&tcpTask::tcpConnected_signal,this,&Widget::on_tcpConnectedSuccessfull,Qt::UniqueConnection);      /* 子线程tcp连接成功通知主线程 */
+    connect(mTcpTask,&tcpTask::errorOccurred_signal,this,&Widget::on_errorOccurred,Qt::UniqueConnection);               /* tcp连接发生错误 */
+    connect(this,&Widget::sendTcpData_signal,mTcpTask,&tcpTask::sendTcpData,Qt::UniqueConnection);                      /* 主线程通知子线程TCP发送数据 */
     connect(mTcpTask,&tcpTask::onlineDeviceName_singal,this,&Widget::on_showDeviceId,Qt::UniqueConnection);             /* 子线程发送的在线的摄像头列表 */
     connect(mTcpTask,&tcpTask::cameraBindOK_signal,this,&Widget::on_cameraBindOK,Qt::UniqueConnection);                 /* 摄像头绑定成功 */
-    connect(mTcpTask,&tcpTask::cameraBindFail_signal,this,&Widget::on_cameraBindFail,Qt::UniqueConnection);             /* 摄像头绑定失败 */
-    connect(mTcpTask,&tcpTask::cameraOpenMotoSuccess_signal,this,&Widget::on_openMotoSuccess,Qt::UniqueConnection);     /* 摄像头打开电机成功 */
+    connect(mTcpTask,&tcpTask::cameraDisbindOK_signal,this,&Widget::on_cameraDisbindOK,Qt::UniqueConnection);           /* 摄像头绑定失败 */
+    connect(mTcpTask,&tcpTask::pictureData_signal,this,&Widget::on_showPicture,Qt::UniqueConnection);                   /* 子线程接收的图片到发送到主线程显示 */
+    connect(mTcpTask,&tcpTask::appLogMessage_signal,this,&Widget::on_showLogMessage,Qt::UniqueConnection);              /* 子线程输出log信息到主线程 */
+    connect(mTcpTask,&tcpTask::downLoadPictureSuccess_signal,this,&Widget::on_downLoadPictureSuccess,Qt::UniqueConnection);
 
-    connect(this,&Widget::tcpConnectToHost_signal,mTcpTask,&tcpTask::startTcpConnect,Qt::UniqueConnection);          /* 主线程通知子线程TCP连接服务器 */
-    connect(this,&Widget::sendTcpData_signal,mTcpTask,&tcpTask::sendTcpData,Qt::UniqueConnection);                   /* 主线程通知子线程TCP发送数据 */
-    emit tcpConnectToHost_signal(TCP_Server_IP,TCP_Server_Port);                                                         /* 建立TCP连接 */
+    connect(mTcpThread, &QThread::finished, this,[=]()
+    {
+        mTcpThread->quit();
+        mTcpThread->wait();
+        mTcpTask->deleteLater();
+        mTcpThread->deleteLater();
 
-    tcpHeartBeatTimer = new QTimer;
-    tcpHeartBeatTimer->start(500);
-    connect(tcpHeartBeatTimer,&QTimer::timeout,this,&Widget::on_keepTcpHeartBeat,Qt::UniqueConnection);              /* 保持TCP心跳 */
+        isTcpThreadAlive = false;
+
+        on_cameraDisbindOK();
+
+        ui->ConnectTCPtButton->setEnabled(true);        /*断开连接，打开连接按键为可用状态*/
+        ui->CloseTCPButton->setEnabled(false);          /*断开连接，关闭连接按键为不可用状态*/
+        emit appLogMessage_signal("已经断开TCP服务器");
+    });
+//    connect(mTcpTask,&tcpTask::cameraOpenMotoSuccess_signal,this,&Widget::on_openMotoSuccess,Qt::UniqueConnection);     /* 摄像头打开电机成功 */
     isTcpThreadAlive = true;
 }
 /*关闭TCP连接按键*/
@@ -302,14 +326,10 @@ void Widget::on_CloseTCPButton_clicked()
 {
     mTcpThread->quit();
     mTcpThread->wait();
-    delete mTcpTask;
-    delete mTcpThread;
-
-    tcpHeartBeatTimer->stop();
-    delete tcpHeartBeatTimer;
+    mTcpTask->deleteLater();
+    mTcpThread->deleteLater();
 
     isTcpThreadAlive = false;
-    isTcpOpen = false;
 
     ui->ConnectTCPtButton->setEnabled(true);        /*断开连接，打开连接按键为可用状态*/
     ui->CloseTCPButton->setEnabled(false);          /*断开连接，关闭连接按键为不可用状态*/
@@ -318,26 +338,27 @@ void Widget::on_CloseTCPButton_clicked()
 /* 下载图片按键 */
 void Widget::on_searchPictureButton_clicked()
 {
-    if(!checkTcpServerIsOK())return;
-    if(!isTcpBackFinish)
+    if(!checkTcpIsConnected())return;
+    chooseDate = ui->tcpDownLoadYearComboBox->currentText().toLocal8Bit() + "-" +
+                    ui->tcpDownLoadMouthComboBox->currentText().toLocal8Bit().rightJustified(2, '0') + "-" +
+                    ui->tcpDownLoadDayComboBox->currentText().toLocal8Bit().rightJustified(2, '0');
+    qDebug() << "当前选择的日期为:" << chooseDate;
+    sendExistPictureFileToServer();                                                                                             /* 向服务器发送本地已经存在的文件 */
+    if(bindCameraDeviceID.isEmpty() && !ui->downLoadIdLineEdit->text().isEmpty())
     {
-        emit appLogMessage_signal("任务正在进行，请稍后重试~");
+        mTcpTask->setBindCameraDevice(ui->downLoadIdLineEdit->text().toLocal8Bit());                                              /* 当没有绑定在线摄像头时设置ID */
+        emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SET_TEMP_DEVICE_ID,ui->downLoadIdLineEdit->text().toLocal8Bit().size(),ui->downLoadIdLineEdit->text().toLocal8Bit()));
+    }
+    else if(bindCameraDeviceID.isEmpty() && ui->downLoadIdLineEdit->text().isEmpty())
+    {
+        emit appLogMessage_signal("未绑定设备也未设置下载的设备ID，请检查!");
         return;
     }
-    if(isBindFinish == false)
-    {
-        emit appLogMessage_signal("请绑定设备!");
-        return;
-    }
-    emit appLogMessage_signal("开始下载图片");
-    sendExistPictureFileToServer();/* 向服务器发送本地已经存在的文件 */
-//    mTcpTask->setSaveDateFileName(ui->selectDateEdit->date().toString("yyyy-MM-dd"));/* 设置保存的文件名称，以读取到日历控件的日期命名 */
-    /* 向服务器发送下载图片的命令,携带指定的日期，代表下载指定日期的图片数据 */
-//    emit sendTcpData_signal(
-//                setDataFrameFormat(1 + ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit().size(),/* 数据总长 */
-//                                   (unsigned char)DOWNLOAD_PICTURE, /* 数据帧功能 */
-//                                   ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit()));/* 数据内容 */
-    ui->searchPictureButton->setDisabled(true);
+    mTcpTask->setSaveDateFileName(chooseDate);                                                                                  /* 设置保存的文件名称，以读取到日历控件的日期命名 */
+                                                                                                                                /* 向服务器发送下载图片的命令,携带指定的日期，代表下载指定日期的图片数据 */
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,DOWNLOAD_PICTURE,chooseDate.size(),chooseDate));      /* 请求下载图片命令 */
+
+//    emit appLogMessage_signal("开始下载图片");ui->searchPictureButton->setDisabled(true);
     isTcpBackFinish = false;
 }
 /* TCP连接成功响应槽函数 */
@@ -346,12 +367,12 @@ void Widget::on_tcpConnectedSuccessfull()
     ui->ConnectTCPtButton->setEnabled(false);       /*连接成功，打开连接按键为不可用状态*/
     ui->CloseTCPButton->setEnabled(true);           /*连接成功，关闭连接按键为可用状态*/
     emit appLogMessage_signal("服务器连接成功");
-    isTcpOpen = true;
 }
-/* TCP断开连接响应槽函数 */
-void Widget::on_tcpDisconnected()
+/* tcp连接错误处理槽函数 */
+void Widget::on_errorOccurred()
 {
-    on_CloseTCPButton_clicked();
+    isTcpThreadAlive = false;
+    emit appLogMessage_signal("发生TCP连接错误");
 }
 /* 显示图片的槽函数 */
 void Widget::on_showPicture(QByteArray picData)
@@ -377,92 +398,41 @@ void Widget::on_showPicture(QByteArray picData)
 /* 文件夹内文件名列表显示的槽函数 */
 void Widget::on_listViewClicked(const QModelIndex &index)
 {
-    qDebug() << "选择的图片是:" << index.data().toString();
-//    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-//                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit() + "/" + index.data().toString();
-//    QByteArray picData;
-//    QFile file(picPath);
-//    qDebug() << picPath;
-//    bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
-//    if(isReadOK)
-//    {
-//        qDebug() << "读取成功";
-//        picData = file.readAll();
-//        file.close();
-//    }
-//    else
-//    {
-//        qDebug() << "读取失败";
-//        file.close();
-//    }
-//    on_showPicture(picData);
+    QString picPath;
+    if(bindCameraDeviceID.isEmpty())
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + ui->downLoadIdLineEdit->text().toLocal8Bit() + "/" + chooseDate;
+    }
+    else
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDeviceID + "/" + chooseDate;
+    }
+    picPath += "/" + index.data().toString();
+    QByteArray picData;
+    QFile file(picPath);
+    bool isReadOK = file.open(QIODevice::ReadOnly); //只读模式打开
+    if(isReadOK)
+    {
+        picData = file.readAll();
+        file.close();
+    }
+    else
+    {
+        qDebug() << "读取失败";
+        file.close();
+    }
+    on_showPicture(picData);
 }
 /* 拍照按键 */
 void Widget::on_takePictureButton_clicked()
 {
-    if(!checkTcpServerIsOK())return;
-    if(!isTcpBackFinish)
-    {
-        emit appLogMessage_signal("任务正在进行，请稍后重试~");
-        return;
-    }
+    if(!checkTcpIsConnected())return;
     if(isBindFinish == false)
     {
         emit appLogMessage_signal("请绑定设备!");
         return;
     }
-    emit appLogMessage_signal("设备开始拍照");
-    emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)TAKE_PICTURE));
-    ui->takePictureButton->setDisabled(true);/* 设置拍照按键不可用 */
-    isTcpBackFinish = false;
-}
-/* TCP线程图片下载状态处理 */
-void Widget::on_readPictureDownLoadState(tcpTask::picDownloadState state)
-{
-    switch (state)
-    {
-        case tcpTask::OK:
-        {
-            /* 将程序下的图片文件复制到用户指定的文件夹下 */
-            copyDirectoryFiles(QCoreApplication::applicationDirPath() + "/" + "照片",savePicFilePath + "/" + "照片",true);
-            /* 遍历存储的所有图片文件 */
-//            QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-//                                    ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
-//            QDir dir(picPath);
-//            QStringList filename ;
-//            filename << "*.jpeg";//可叠加，可使用通配符筛选
-//            QStringList fileResults;
-//            fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
-//            if(fileResults.size() == 0)
-//            {
-//                QMessageBox::warning(this, "警告!", "没有找到下载的图片!");
-//                return;
-//            }
-
-//            QStringList list;
-//            for(int i=0;i<fileResults.size();i++)
-//            {
-//                list.append(fileResults.at(i));
-//            }
-
-//            listmodel->setStringList(list);
-//            ui->listView->setModel(listmodel);
-//            emit appLogMessage_signal("图片下载完成");
-//            ui->searchPictureButton->setDisabled(false);
-//            isTcpBackFinish = true;
-            break;
-        }
-        case tcpTask::PICTURE_EMPTY:
-        {
-            QMessageBox::information(this,"提示","没有可下载资源");
-            emit appLogMessage_signal("没有可下载资源");
-            ui->searchPictureButton->setDisabled(false);
-            isTcpBackFinish = true;
-            break;
-        }
-        default:
-            break;
-    }
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_CAMER,TAKE_PICTURE,0,0));
 }
 /* 保存路径按钮 */
 void Widget::on_setSavePathButton_clicked()
@@ -482,12 +452,6 @@ void Widget::on_setSavePathButton_clicked()
         userSetting->endGroup();
         emit appLogMessage_signal("选择保存的路径为:" + savePicFilePath.toLocal8Bit());
     }
-}
-/* 发送TCP心跳包 */
-void Widget::on_keepTcpHeartBeat()
-{
-    if(!isTcpOpen)return;
-    emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)HERAT_BEAT_PACK));
 }
 /* 拷贝文件夹 */
 bool Widget::copyDirectoryFiles(const QString fromDir, const QString toDir, bool coverFileIfExist)
@@ -553,31 +517,149 @@ void Widget::comBoxClick()
 /* 将本地存在的文件名称发送给服务器，避免重复下载 */
 void Widget::sendExistPictureFileToServer()
 {
-//    QString picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDevice + "/" +
-//                            ui->selectDateEdit->date().toString("yyyy-MM-dd").toLocal8Bit();
-//    QDir dir(picPath);
-//    QStringList filename ;
-//    filename << "*.jpeg";//可叠加，可使用通配符筛选
-//    QStringList fileResults;
-//    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
-//    if(fileResults.size() == 0)
-//    {
-//        return;
-//    }
-//    emit appLogMessage_signal("检测到本地有存在的图片数据");
-//    emit appLogMessage_signal("请注意，这些图片将不会重复下载");
-//    QStringList list;
-//    for(int i=0;i<fileResults.size();i++)
-//    {
-//        list.append(fileResults.at(i));
-//        qDebug() <<fileResults.at(i);
-//        /* 将已经下载下来的图片发送给服务器，来避免重复下载图片 */
-//        emit sendTcpData_signal(
-//                    setDataFrameFormat(1 + fileResults.at(i).toLocal8Bit().size(),/* 数据总长 */
-//                                       (unsigned char)CLIENT_PICTURE_FILE_NAME, /* 数据帧功能 */
-//                                       fileResults.at(i).toLocal8Bit()));/* 数据内容 */
-//        emit appLogMessage_signal("本地存在的图片:" + fileResults.at(i).toLocal8Bit());
-//    }
+    if(chooseDate.isEmpty())
+    {
+        emit appLogMessage_signal("请检查选择的日期是否正确");
+        return;
+    }
+    QString picPath;
+    if(bindCameraDeviceID.isEmpty())
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + ui->downLoadIdLineEdit->text().toLocal8Bit() + "/" + chooseDate;
+    }
+    else
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDeviceID + "/" + chooseDate;
+    }
+    QDir dir(picPath);
+    QStringList filename ;
+    filename << "*.jpeg";//可叠加，可使用通配符筛选
+    QStringList fileResults;
+    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
+    if(fileResults.size() == 0)
+    {
+        return;
+    }
+    emit appLogMessage_signal("检测到本地有存在的图片数据");
+    emit appLogMessage_signal("请注意，这些图片将不会重复下载");
+    QStringList list;
+    for(int i=0;i<fileResults.size();i++)
+    {
+        list.append(fileResults.at(i));
+        qDebug() <<fileResults.at(i);
+        /* 将已经下载下来的图片发送给服务器，来避免重复下载图片 */
+        emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,CLIENT_EXIST_PICTURE_FILE_NAME,
+                                                 fileResults.at(i).toLocal8Bit().size(),
+                                                 fileResults.at(i).toLocal8Bit()));
+        emit appLogMessage_signal("本地存在的图片:" + fileResults.at(i).toLocal8Bit());
+    }
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,CLIENT_EXIST_PICTURE_FILE_NAME_END,0,0));
+}
+
+QByteArray Widget::packTcpDataFrame(uint8_t charactar,uint8_t target, uint8_t cmd, uint32_t dataLen, QByteArray data)
+{
+    /* 0xAA byte1 byte2 byte3  byte4 byte5 byte6 byte7   byteN   0xBB */
+    /* 帧头  角色   目标   作用       长度（四字节）          数据载荷   帧尾 */
+    QByteArray tempData;
+    uint32_t cnt = 0;
+    tempData.resize(4 + 4);
+    tempData[cnt++] = 0xAA;                 /* 帧头 */
+    tempData[cnt++] = charactar;      /* 角色 */
+    tempData[cnt++] = target;               /* 目标 */
+    tempData[cnt++] = cmd;                  /* 作用 */
+    tempData[cnt++] = dataLen;              /* 长度 */
+    tempData[cnt++] = dataLen>>8;
+    tempData[cnt++] = dataLen>>16;
+    tempData[cnt++] = dataLen>>24;
+    tempData.append(data);
+    tempData.append((char)0xBB);
+    return tempData;
+}
+
+bool Widget::checkTcpIsConnected()
+{
+    if(!isTcpThreadAlive)
+    {
+        QMessageBox::information(this, "提示", "请检查TCP链接！");
+        return false;
+    }
+    return true;
+}
+
+void Widget::hideTcpSetScheduledTimingGroup()
+{
+    ui->label_15->hide();
+    ui->tcpScheduledTimeLineEdit->hide();
+    ui->label_22->hide();
+}
+
+void Widget::showTcpSetScheduledTimingGroup()
+{
+    ui->label_15->show();
+    ui->tcpScheduledTimeLineEdit->show();
+    ui->label_22->show();
+}
+
+void Widget::hideTcpSetRecordTimingGroup()
+{
+    ui->label_16->hide();
+    ui->tcpHourTimingComboBox->hide();
+    ui->label_23->hide();
+    ui->tcpMinuteTimingComboBox->hide();
+    ui->label_24->hide();
+    ui->tcpAddRecordTimeComboBox->hide();
+    ui->tcpAddRecordTimePushButton->hide();
+    ui->tcpDeleteRecordTimePushButton->hide();
+}
+
+void Widget::showTcpSetRecordTimingGroup()
+{
+    ui->label_16->show();
+    ui->tcpHourTimingComboBox->show();
+    ui->label_23->show();
+    ui->tcpMinuteTimingComboBox->show();
+    ui->label_24->show();
+    ui->tcpAddRecordTimeComboBox->show();
+    ui->tcpAddRecordTimePushButton->show();
+    ui->tcpDeleteRecordTimePushButton->show();
+}
+
+void Widget::hideSetScheduledTimingGroup()
+{
+    ui->label_14->hide();
+    ui->scheduledTimeLineEdit->hide();
+    ui->label_25->hide();
+}
+
+void Widget::showSetScheduledTimingGroup()
+{
+    ui->label_14->show();
+    ui->scheduledTimeLineEdit->show();
+    ui->label_25->show();
+}
+
+void Widget::showSetRecordTimingGroup()
+{
+    ui->label_12->show();
+    ui->hourTimingComboBox->show();
+    ui->label_27->show();
+    ui->minuteTimingComboBox->show();
+    ui->label_26->show();
+    ui->addRecordTimeComboBox->show();
+    ui->addRecordTimePushButton->show();
+    ui->deleteRecordTimePushButton->show();
+}
+
+void Widget::hideSetRecordTimingGroup()
+{
+    ui->label_12->hide();
+    ui->hourTimingComboBox->hide();
+    ui->label_27->hide();
+    ui->minuteTimingComboBox->hide();
+    ui->label_26->hide();
+    ui->addRecordTimeComboBox->hide();
+    ui->addRecordTimePushButton->hide();
+    ui->deleteRecordTimePushButton->hide();
 }
 /* 清除本地缓存按钮 */
 void Widget::on_clearLocalCahePathButton_clicked()
@@ -595,15 +677,8 @@ void Widget::on_clearLocalCahePathButton_clicked()
 /* 清除服务器缓存按钮 */
 void Widget::on_clearServerCahePathButton_clicked()
 {
-    if(!checkTcpServerIsOK())return;
-    if(!isTcpBackFinish)
-    {
-        emit appLogMessage_signal("任务正在进行，请稍后重试~");
-        return;
-    }
-    emit appLogMessage_signal("开始清除服务器缓存");
-    emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)CLEAR_SERVER_CACHE));   
-    isTcpBackFinish = false;
+    if(!checkTcpIsConnected()){return;};
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,CLEAR_SERVER_CACHE,0,0));
 }
 /* 拍照完成响应槽函数 */
 void Widget::on_takePicFinish()
@@ -613,18 +688,12 @@ void Widget::on_takePicFinish()
     isTcpBackFinish = true;
     on_searchPictureButton_clicked();/* 把拍摄的照片下载下来 */
 }
-/* TCP服务器缓存清除完成响应函数 */
-void Widget::on_tcpServerCacheClearDone()
-{
-    QMessageBox::information(this, "提示", "服务器缓存清除成功！");
-    emit appLogMessage_signal("服务器缓存已经清除");
-    isTcpBackFinish = true;
-}
 /* 显示log信息到主界面UI显示槽函数 */
 void Widget::on_showLogMessage(QByteArray logMessage)
 {
     ui->logShowTextEdit->append(logMessage);
 }
+
 bool Widget::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
 {
     Q_UNUSED(eventType);
@@ -734,6 +803,7 @@ void Widget::on_devicePushButton_clicked()
 /* 判断串口设备打开是否成功 */
 void Widget::on_openSerialPortState(bool state)
 {
+    isSerialPortOpen = state;
     if(state)
     {
         ui->devicePushButton->setText("关闭设备");
@@ -753,18 +823,23 @@ void Widget::on_openSerialPortState(bool state)
 
 void Widget::on_writeDevicePushButton_clicked()
 {
-    QByteArray wifiName = ui->wifiNameLineEdit->text().toLocal8Bit();
-    QByteArray wifiPassWord = ui->wifiPasswordLineEdit->text().toLocal8Bit();
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
+    QByteArray wifiName = ui->wifiNameLineEdit->text().toLocal8Bit();               /* 获取WIFI名称 */
+    QByteArray wifiPassWord = ui->wifiPasswordLineEdit->text().toLocal8Bit();       /* 获取WIFI密码 */
 
-    QByteArray serverIp = ui->serverIpLineEdit->text().toLocal8Bit();
-    QByteArray serverPort = ui->serverPortLineEdit->text().toLocal8Bit();
+    QByteArray serverIp = ui->serverIpLineEdit->text().toLocal8Bit();               /* 获取服务器IP */
+    QByteArray serverPort = ui->serverPortLineEdit->text().toLocal8Bit();           /* 获取服务器PORT */
 
-    QByteArray deviceId = ui->deviceIdSetLineEdit->text().toLocal8Bit();
+    QByteArray deviceId = ui->deviceIdSetLineEdit->text().toLocal8Bit();            /* 获取设置的相机ID */
 
-    unsigned short imageSize = 0;
-    unsigned short imageQuality = 0;
-    unsigned short ledFlashBrightness = 0;
-    unsigned short takePictureDelayTime = 0;
+    unsigned short imageSize = 0;                                                   /* 图片大小 */
+    unsigned short imageQuality = 0;                                                /* 图片质量 */
+    unsigned short ledFlashBrightness = 0;                                          /* 闪光灯的亮度 */
+    unsigned short takePictureDelayTime = 0;                                        /* 拍照延时 */
 
     switch (ui->imageSizeComboBox->currentIndex())
     {
@@ -784,60 +859,48 @@ void Widget::on_writeDevicePushButton_clicked()
             break;
     }
 
-    imageQuality = ui->imageQualityComboBox->currentIndex();
-    ledFlashBrightness = ui->ledBrightnessLineEdit->text().toUShort();
+    imageQuality         = ui->imageQualityComboBox->currentIndex();
+    ledFlashBrightness   = ui->ledBrightnessLineEdit->text().toUShort();
     takePictureDelayTime = ui->takePictureDelayTimeLineEdit->text().toUShort();
 
-    if(wifiName.isEmpty()){emit appLogMessage_signal("WIFI名字为空，请检查");return;}
-    if(wifiPassWord.isEmpty()){emit appLogMessage_signal("WIFI密码为空，请检查");return;}
-    if(serverIp.isEmpty()){emit appLogMessage_signal("服务器地址为空，请检查");return;}
-    if(serverPort.isEmpty()){emit appLogMessage_signal("服务器端口为空，请检查");return;}
-    if(deviceId.isEmpty()){emit appLogMessage_signal("设备ID为空，请检查");return;}
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CDM_WIFI_NAME                     ,wifiName));
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_WIFI_PASSWORD                 ,wifiPassWord));
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_IP                     ,serverIp));
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT                   ,serverPort));
+    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_DEVICE_ID                     ,deviceId));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE                  ,imageSize));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY               ,imageQuality));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_LIED_BRIGHTNESS           ,ledFlashBrightness));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TAKE_PICTURE_DELAY_TIME   ,takePictureDelayTime));
 
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CDM_WIFI_NAME,wifiName));
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_WIFI_PASSWORD,wifiPassWord));
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_IP,serverIp));
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT,serverPort));
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_DEVICE_ID,deviceId));
-
-//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE,imageSize));
-//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY,imageQuality));
-//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_LIED_BRIGHTNESS,ledFlashBrightness));
-//    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TAKE_PICTURE_DELAY_TIME,takePictureDelayTime));
-
-//    if(ui->scheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
-//    {
-//        QByteArray dateTime;
-//        dateTime = ui->scheduledTimeLineEdit->text().toLocal8Bit();
-//        if(dateTime.isEmpty())
-//        {
-//            emit appLogMessage_signal("请输入正确的间隔时间!");
-//            return;
-//        }
-//        if(dateTime.toUShort() > 24 * 60)
-//        {
-//            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
-//            return;
-//        }
-//        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,dateTime.toUShort()));/* 发送间隔定时时间 */
-//        emit appLogMessage_signal("间隔定时的定时时间已发送!");
-//    }
-//    else if(ui->recordCheckBox->isChecked()) /* 固定定时 */
-//    {
-//        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,0));
-//        QByteArray dateTime;
-//        for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
-//        {
-//            dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
-//            emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
-//        }
-//        emit appLogMessage_signal("固定定时的定时时间已发送!");
-//    }
-//    else
-//    {
-//        emit appLogMessage_signal("请选择定时方式!");
-//    }
+    if(ui->scheduledTimeCheckBox->isChecked())/* 间隔定时模式 */
+    {
+        QByteArray dateTime;
+        dateTime = ui->scheduledTimeLineEdit->text().toLocal8Bit();
+        if(dateTime.isEmpty())
+        {
+            emit appLogMessage_signal("请输入正确的间隔时间!");
+            return;
+        }
+        if(dateTime.toUShort() > 24 * 60)
+        {
+            emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
+            return;
+        }
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,dateTime.toUShort()));/* 发送间隔定时时间 */
+    }
+    else if(ui->recordCheckBox->isChecked()) /* 固定定时 */
+    {
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_DELAY_TIME,0));
+        QByteArray dateTime;
+        for(int i=0;i<ui->addRecordTimeComboBox->count();i++)
+        {
+            dateTime = ui->addRecordTimeComboBox->itemText(i).toLocal8Bit();
+            emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_RECORD_TIME,dateTime));
+        }
+    }
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_PARA_END,0));/* 配置信息发送完毕 */
+    emit appLogMessage_signal("相关参数设置已发送!");
 }
 
 void Widget::on_takePictureError()
@@ -850,34 +913,8 @@ void Widget::on_takePictureError()
 /* 搜索在线设备的按键的槽函数 */
 void Widget::on_searchDeviceButton_clicked()
 {
-    if(!checkTcpServerIsOK()){emit appLogMessage_signal("请检查服务器是否连接！");return;};
-
-    if(ui->searchDeviceButton->text() == "搜索设备")
-    {
-        emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)GET_ONLINE_DEVICE));
-        ui->searchDeviceButton->setText("连接设备");
-    }
-    else if(ui->searchDeviceButton->text() == "连接设备")
-    {
-        if(ui->deviceOnlineComboBox->currentText() == "")
-        {
-            emit appLogMessage_signal("请检查设备ID是否正确！");
-            ui->searchDeviceButton->setText("搜索设备");
-            return;
-        }
-        emit sendTcpData_signal(setDataFrameFormat( 1+ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),
-                                                    (unsigned char)CLIENT_BIND_CAMERA,
-                                                    ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
-    }
-    if(ui->searchDeviceButton->text() == "断开连接")
-    {
-        emit sendTcpData_signal(setDataFrameFormat( 1+ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),
-                                                   (unsigned char)CLIENT_DISBIND_CAMERA,
-                                                   ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
-        bindCameraDevice = "";
-        isBindFinish = false;
-        ui->searchDeviceButton->setText("搜索设备");
-    }
+    if(!checkTcpIsConnected()){return;};
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,GET_ONLINE_CAMERA_DEVICE_ID,0,0));
 }
 
 void Widget::on_showDeviceId(QList<QByteArray> deviceIdList)
@@ -892,28 +929,32 @@ void Widget::on_showDeviceId(QList<QByteArray> deviceIdList)
 
 void Widget::on_cameraBindOK()
 {
-    ui->searchDeviceButton->setText("断开连接");
-    bindCameraDevice = ui->deviceOnlineComboBox->currentText().toLocal8Bit();
-    mTcpTask->setBindCameraDevice(bindCameraDevice);
-    isBindFinish = true;
+    bindCameraDeviceID = ui->deviceOnlineComboBox->currentText().toLocal8Bit();
+    mTcpTask->setBindCameraDevice(bindCameraDeviceID);
+    ui->disConnectDeviceButton->setEnabled(true);                   /* 断开连接设备按键可用 */
+    ui->connectDeviceButton->setEnabled(false);                     /* 连接设备按键不可用 */
+    isBindFinish = true;                                            /* 绑定成功标志 */
+    emit appLogMessage_signal("相机绑定成功！");
 }
 
-void Widget::on_cameraBindFail()
+void Widget::on_cameraDisbindOK()
 {
-    ui->searchDeviceButton->setText("搜索设备");
-    bindCameraDevice = "";
-    isBindFinish = false;
+    bindCameraDeviceID = "";
+    mTcpTask->setBindCameraDevice(bindCameraDeviceID);
+    ui->disConnectDeviceButton->setEnabled(false);                  /* 断开连接设备按键不可用 */
+    ui->connectDeviceButton->setEnabled(true);                      /* 连接设备按键可用 */
+    isBindFinish = false;                                           /* 解除绑定 */
+    emit appLogMessage_signal("解除相机绑定成功！");
 }
 /* 打开水泵按键 */
 void Widget::on_motoControlPushButton_clicked()
 {
-    if(!checkTcpServerIsOK())return;
     if(isBindFinish == false)
     {
         emit appLogMessage_signal("请绑定设备!");
         return;
     }
-    emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)OPEN_MOTO_CMD));
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_CAMER,OPEN_MOTO_CMD,0,0));
 }
 
 void Widget::on_openMotoSuccess()
@@ -923,11 +964,21 @@ void Widget::on_openMotoSuccess()
 
 void Widget::on_readDeviceInfoPushButton_clicked()
 {
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SHOW_DEVICE_INFO,0));
 }
 
 void Widget::on_resetDevicePushButton_clicked()
 {
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_RESET_DEVICE,0));
 }
 
@@ -935,7 +986,7 @@ void Widget::on_addRecordTimePushButton_clicked()
 {
     QByteArray dateTime;
     dateTime.resize(5);
-//    sprintf(dateTime.data(),"%02d:%02d",ui->recordTimeEdit->time().hour(),ui->recordTimeEdit->time().minute());
+    sprintf(dateTime.data(),"%02d:%02d",ui->hourTimingComboBox->currentText().toInt(),ui->minuteTimingComboBox->currentText().toInt());
     ui->addRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
 }
 
@@ -962,22 +1013,22 @@ void Widget::on_tcpSetRecordPushButton_clicked()
             emit appLogMessage_signal("超过最大可设定时间，请检查重新填写");
             return;
         }
-        emit sendTcpData_signal(setUshortFrameFormat( 1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,dateTime.toUShort()));/* 发送间隔定时时间 */
+        QByteArray shortData;
+        shortData.resize(2);
+        shortData[0] = dateTime.toUShort();
+        shortData[1] = dateTime.toUShort()>>8;
+        emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_CAMER,SET_SCHEDULED_TIME,2,shortData));
         emit appLogMessage_signal("间隔定时的定时时间已发送!");
     }
     else if(ui->tcpRecordCheckBox->isChecked()) /* 固定定时 */
     {
-        emit sendTcpData_signal(setUshortFrameFormat( 1 + 2,(unsigned char)SET_SCHEDULED_TIME_CMD,0));/* 发送间隔定时时间，时间为0分钟 */
         QByteArray dateTime;
         for(int i=0;i<ui->tcpAddRecordTimeComboBox->count();i++)
         {
             dateTime = ui->tcpAddRecordTimeComboBox->itemText(i).toLocal8Bit();
-            emit sendTcpData_signal(setDataFrameFormat( 1 + dateTime.size(),
-                                                        (unsigned char)SET_RECORD_TIME_CMD,
-                                                        dateTime));/* 发送定时的时间 */
+            emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_CAMER,SET_RECORD_TIME,dateTime.size(),dateTime));
         }
-
-        emit sendTcpData_signal(setCmdFrameFormat(1,(unsigned char)SET_RECORD_TIME_DONE_CMD));/* 发送定时的时间 */
+        emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_CAMER,SET_RECORD_TIME_END,0,0));
         emit appLogMessage_signal("固定定时的定时时间已发送!");
     }
 }
@@ -987,7 +1038,7 @@ void Widget::on_tcpAddRecordTimePushButton_clicked()
 {
     QByteArray dateTime;
     dateTime.resize(5);
-//    sprintf(dateTime.data(),"%02d:%02d",ui->tcpRecordTimeEdit->time().hour(),ui->tcpRecordTimeEdit->time().minute());
+    sprintf(dateTime.data(),"%02d:%02d",ui->tcpHourTimingComboBox->currentText().toInt(),ui->tcpMinuteTimingComboBox->currentText().toInt());
     ui->tcpAddRecordTimeComboBox->addItem(QString::fromLocal8Bit(dateTime));
 }
 
@@ -1042,10 +1093,109 @@ void Widget::resizeEvent(QResizeEvent *event)
         it.key()->setGeometry(it.value().x() * width, it.value().y() * height, it.value().width() * width, it.value().height() * height);
         it.key()->updateGeometry();
     }
-//    for(int i=0;i<m_Widget.count();i++)
-//    {
-//        m_Widget[i]->setGeometry(m_Widget.at(i)->x() * width,m_Widget.at(i)->y() * height,m_Widget.at(i)->width() * width,m_Widget.at(i)->height() * height);
-//    }
-update();
+}
+
+void Widget::on_connectDeviceButton_clicked()
+{
+    if(!checkTcpIsConnected()){return;};
+    if(ui->deviceOnlineComboBox->currentText() == "")
+    {
+        emit appLogMessage_signal("请检查设备ID是否正确！");
+        return;
+    }
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,CLIENT_BIND_CAMERA,
+        ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
+}
+
+void Widget::on_disConnectDeviceButton_clicked()
+{
+    if(!checkTcpIsConnected()){return;};
+    emit sendTcpData_signal(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,CLIENT_DISBIND_CAMERA,
+        ui->deviceOnlineComboBox->currentText().toLocal8Bit().size(),ui->deviceOnlineComboBox->currentText().toLocal8Bit()));
+    bindCameraDeviceID = "";
+    ui->disConnectDeviceButton->setEnabled(false);                          /* 断开连接设备按键不可用 */
+}
+
+void Widget::on_tcpScheduledTimeCheckBox_stateChanged(int arg1)
+{
+    if(Qt::Checked == arg1)
+    {
+        showTcpSetScheduledTimingGroup();
+    }
+    else
+    {
+        hideTcpSetScheduledTimingGroup();
+    }
+}
+
+void Widget::on_scheduledTimeCheckBox_stateChanged(int arg1)
+{
+    if(Qt::Checked == arg1)
+    {
+        showSetScheduledTimingGroup();
+    }
+    else
+    {
+        hideSetScheduledTimingGroup();
+    }
+}
+
+void Widget::on_tcpRecordCheckBox_stateChanged(int arg1)
+{
+    if(Qt::Checked == arg1)
+    {
+        showTcpSetRecordTimingGroup();
+    }
+    else
+    {
+        hideTcpSetRecordTimingGroup();
+    }
+}
+
+void Widget::on_recordCheckBox_stateChanged(int arg1)
+{
+    if(Qt::Checked == arg1)
+    {
+        showSetRecordTimingGroup();
+    }
+    else
+    {
+        hideSetRecordTimingGroup();
+    }
+}
+
+void Widget::on_downLoadPictureSuccess()
+{
+    /* 将程序下的图片文件复制到用户指定的文件夹下 */
+    copyDirectoryFiles(QCoreApplication::applicationDirPath() + "/" + "照片",savePicFilePath + "/" + "照片",true);
+    /* 遍历存储的所有图片文件 */
+    QString picPath;
+    if(bindCameraDeviceID.isEmpty())
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + ui->downLoadIdLineEdit->text().toLocal8Bit() + "/" + chooseDate;
+    }
+    else
+    {
+        picPath = QCoreApplication::applicationDirPath() + "/" + "照片" + "/" + bindCameraDeviceID + "/" + chooseDate;
+    }
+    QDir dir(picPath);
+    QStringList filename ;
+    filename << "*.jpeg";//可叠加，可使用通配符筛选
+    QStringList fileResults;
+    fileResults = dir.entryList(filename,QDir::Files | QDir::Readable,QDir::Name);
+    if(fileResults.size() == 0)
+    {
+        QMessageBox::warning(this, "警告!", "没有找到下载的图片!");
+        return;
+    }
+
+    QStringList list;
+    for(int i=0;i<fileResults.size();i++)
+    {
+        list.append(fileResults.at(i));
+    }
+
+    listmodel->setStringList(list);
+    ui->listView->setModel(listmodel);
 }
 

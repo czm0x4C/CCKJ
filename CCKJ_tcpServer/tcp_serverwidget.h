@@ -6,10 +6,11 @@
 #include <QTcpSocket>
 #include "qsettings.h"
 #include "tcp_serverworker.h"
-
+#include "mytcpsocket.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class TCP_ServerWidget; }
+
 QT_END_NAMESPACE
 
 class TCP_ServerWidget : public QWidget
@@ -20,9 +21,9 @@ public:
     TCP_ServerWidget(QWidget *parent = nullptr);
     ~TCP_ServerWidget();
 
-    void UI_SocketInformationConnectShow(QString TcpClientIP, QString TcpClientPort,unsigned int ClientNumber);
+    void UI_SocketInformationConnectShow(QHostAddress ip,uint16_t port);
 
-    void UI_SocketInformationDisonnectShow(QString TcpClientIP,QString TcpClientPort, unsigned int ClientNumber);
+    void UI_SocketInformationDisonnectShow(QHostAddress ip,uint16_t port);
 
     void pictureShowFromData(QByteArray pictureData);
 
@@ -36,7 +37,9 @@ signals:
     void ServerSendDataToClientSignal(unsigned int ClientID,QByteArray ServerData);
 
     void appLogMessage_signal(QByteArray logMessage);
+protected:
 
+    virtual void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void on_TCPServerListenPushButton_clicked();
@@ -46,13 +49,19 @@ private slots:
 private:
     Ui::TCP_ServerWidget *ui;
 
-    QTcpServer *TCP_Server;
+    uint32_t ClientNumber = 0;              /* 记录连接的客户端数量 */
+
+    myTcpServer *mmyTcpServer;
 
     QThread *TaskOne;
 
     TCP_ServerWorker *TaskOneWorker;
 
     QSettings *userSetting;
+
+    QList<QWidget*> m_Widget;			    //存储所有的子控件
+
+    QMap<QWidget*, QRect> m_WidgetRect;		//保存每个子控件的初始大小
 
     void getLocalNetInformation();
 

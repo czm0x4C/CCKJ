@@ -4,6 +4,8 @@
 #include <QThread>
 #include <QNetworkInterface>
 
+
+
 TCP_ServerWidget::TCP_ServerWidget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::TCP_ServerWidget)
@@ -31,21 +33,28 @@ TCP_ServerWidget::TCP_ServerWidget(QWidget *parent)
     ui->TcpClientNumberLabel->setFont(font);
     ui->TcpClientNumberLabel->setText("已连接客户端数量：0");
 
-    TaskOne = new QThread;                          /*创建子线程对象*/
-    TaskOneWorker = new TCP_ServerWorker;           /*创建任务对象*/
-    TaskOneWorker->moveToThread(TaskOne);           /*将任务对象移动到子线程中去*/
+//    TaskOne = new QThread;                          /*创建子线程对象*/
+//    TaskOneWorker = new TCP_ServerWorker;           /*创建任务对象*/
+//    TaskOneWorker->moveToThread(TaskOne);           /*将任务对象移动到子线程中去*/
 
-    /*注意信号的重复连接，Qt::UniqueConnection(保证信号只被连接一次)*/
-    connect(this,&TCP_ServerWidget::StartListenTCPClientSignal,TaskOneWorker,&TCP_ServerWorker::StartListenTCPClient,Qt::ConnectionType(Qt::AutoConnection | Qt::UniqueConnection));
-    connect(TaskOneWorker,&TCP_ServerWorker::SocketInformationConnectSignal,this,&TCP_ServerWidget::UI_SocketInformationConnectShow);
-    connect(TaskOneWorker,&TCP_ServerWorker::SocketInformationDisconnectSignal,this,&TCP_ServerWidget::UI_SocketInformationDisonnectShow);
-    connect(TaskOneWorker,&TCP_ServerWorker::appLogMessage_signal,this,&TCP_ServerWidget::on_showLogMessage);
-    connect(this,&TCP_ServerWidget::ProgramOverSignal,TaskOneWorker,&TCP_ServerWorker::ProgramOver);
-    connect(this,&TCP_ServerWidget::ServerSendDataToClientSignal,TaskOneWorker,&TCP_ServerWorker::ServerSendDataToClient);
+//    /*注意信号的重复连接，Qt::UniqueConnection(保证信号只被连接一次)*/
+//    connect(this,&TCP_ServerWidget::StartListenTCPClientSignal,TaskOneWorker,&TCP_ServerWorker::StartListenTCPClient,Qt::ConnectionType(Qt::AutoConnection | Qt::UniqueConnection));
+//    connect(TaskOneWorker,&TCP_ServerWorker::SocketInformationConnectSignal,this,&TCP_ServerWidget::UI_SocketInformationConnectShow);
+//    connect(TaskOneWorker,&TCP_ServerWorker::SocketInformationDisconnectSignal,this,&TCP_ServerWidget::UI_SocketInformationDisonnectShow);
+//    connect(TaskOneWorker,&TCP_ServerWorker::appLogMessage_signal,this,&TCP_ServerWidget::on_showLogMessage);
+//    connect(this,&TCP_ServerWidget::ProgramOverSignal,TaskOneWorker,&TCP_ServerWorker::ProgramOver);
+//    connect(this,&TCP_ServerWidget::ServerSendDataToClientSignal,TaskOneWorker,&TCP_ServerWorker::ServerSendDataToClient);
 
-    connect(TaskOneWorker,&TCP_ServerWorker::pictureDataShow_signal, this ,&TCP_ServerWidget::pictureShowFromData);/*图片显示处理*/
-    qDebug()<<"TCP_ServerWidget threadId: "<<QThread::currentThreadId();
+//    connect(TaskOneWorker,&TCP_ServerWorker::pictureDataShow_signal, this ,&TCP_ServerWidget::pictureShowFromData);/*图片显示处理*/
+//    qDebug()<<"TCP_ServerWidget threadId: "<<QThread::currentThreadId();
 
+    //获取所有的控件
+    m_Widget = this->findChildren<QWidget*>(QString(), Qt::FindChildrenRecursively);
+    //遍历控件获取大小和位置
+    foreach(auto widget, m_Widget)
+    {
+        m_WidgetRect.insert(widget, QRect(widget->x(), widget->y(), widget->width(), widget->height()));
+    }
 }
 
 TCP_ServerWidget::~TCP_ServerWidget()
@@ -55,19 +64,18 @@ TCP_ServerWidget::~TCP_ServerWidget()
     delete ui;
 }
 
-void TCP_ServerWidget::UI_SocketInformationConnectShow(QString TcpClientIP, QString TcpClientPort, unsigned int ClientNumber)
+void TCP_ServerWidget::UI_SocketInformationConnectShow(QHostAddress ip, uint16_t port)
 {
+    ClientNumber++;
     ui->TcpClientNumberLabel->setText("已连接客户端数量：" + QString::number(ClientNumber));
-    if(!TcpClientIP.isEmpty() || !TcpClientPort.isEmpty())
-    {
-        emit appLogMessage_signal("有新加入的客户端:" + TcpClientIP.toLocal8Bit() + "," + TcpClientPort.toLocal8Bit());
-    }
+    emit appLogMessage_signal("有新加入的客户端:" + ip.toString().toLocal8Bit() + ":" + QByteArray::number(port));
 }
 
-void TCP_ServerWidget::UI_SocketInformationDisonnectShow(QString TcpClientIP, QString TcpClientPort, unsigned int ClientNumber)
+void TCP_ServerWidget::UI_SocketInformationDisonnectShow(QHostAddress ip, uint16_t port)
 {
+    ClientNumber--;
     ui->TcpClientNumberLabel->setText("已连接客户端数量：" + QString::number(ClientNumber));
-    emit appLogMessage_signal("有新断开的客户端:" + TcpClientIP.toLocal8Bit() + "," + TcpClientPort.toLocal8Bit());
+    emit appLogMessage_signal("有新断开的客户端:" + ip.toString().toLocal8Bit()+ ":" + QByteArray::number(port));
 }
 
 void TCP_ServerWidget::pictureShowFromData(QByteArray pictureData)
@@ -94,6 +102,23 @@ void TCP_ServerWidget::on_showLogMessage(QByteArray logMessage)
     ui->logShowTextEdit->append(logMessage);
 }
 
+
+
+void TCP_ServerWidget::resizeEvent(QResizeEvent *event)
+{
+    Q_UNUSED(event);
+    show();
+    qApp->processEvents();
+    float width = this->width() * 1./ 533;
+    float height = this->height() * 1./252;
+    for ( auto it= m_WidgetRect.begin(); it != m_WidgetRect.end(); it++ )
+    {
+        it.key()->setGeometry(it.value().x() * width, it.value().y() * height, it.value().width() * width, it.value().height() * height);
+        it.key()->updateGeometry();
+    }
+//update();
+}
+/* tcp连接按键 */
 void TCP_ServerWidget::on_TCPServerListenPushButton_clicked()
 {
     if((ui->TCPServerIPLineEdit->text() == "") || (ui->TCPServerPortLineEdit->text() == ""))
@@ -106,17 +131,26 @@ void TCP_ServerWidget::on_TCPServerListenPushButton_clicked()
     ui->TCPServerCloseListenPushButton->setEnabled(true);/*结束监听按键有效*/
     unsigned short TCP_Port = ui->TCPServerPortLineEdit->text().toUShort(); /*获取用户输入的端口号*/
     QString TCP_IP = ui->TCPServerIPLineEdit->text();
-    TaskOne->start();                               /*启动线程，让线程中的任务去连接TCP*/
-    emit appLogMessage_signal("设置的服务器地址为:" + TCP_IP.toLocal8Bit());
-    emit appLogMessage_signal("设置的服务器端口为:" + QByteArray::number(TCP_Port));
-    emit appLogMessage_signal("已经启动服务器监听");
-    emit StartListenTCPClientSignal(TCP_IP,TCP_Port);/*向子线程发送坚挺的端口号，启动监听*/
+//    TaskOne->start();                               /*启动线程，让线程中的任务去连接TCP*/
+//    emit appLogMessage_signal("设置的服务器地址为:" + TCP_IP.toLocal8Bit());
+//    emit appLogMessage_signal("设置的服务器端口为:" + QByteArray::number(TCP_Port));
+//    emit appLogMessage_signal("已经启动服务器监听");
+//    emit StartListenTCPClientSignal(TCP_IP,TCP_Port);/*向子线程发送坚挺的端口号，启动监听*/
+
+    mmyTcpServer = new myTcpServer(QHostAddress(TCP_IP),TCP_Port);
+    connect(mmyTcpServer,&myTcpServer::appLogMessage_signal,this,&TCP_ServerWidget::on_showLogMessage);/* log信息显示 */
+    connect(mmyTcpServer,&myTcpServer::UI_SocketInformationConnectShow_signal,this,&TCP_ServerWidget::UI_SocketInformationConnectShow);/* 连接tcp的客户端信息 */
+    connect(mmyTcpServer,&myTcpServer::UI_SocketInformationDisonnectShow_signal,this,&TCP_ServerWidget::UI_SocketInformationDisonnectShow);/* 断开连接tcp的客户端信息 */
 }
 
 
 void TCP_ServerWidget::on_TCPServerCloseListenPushButton_clicked()
 {
-    emit ProgramOverSignal();/*向子线程发送结束监听的信号*/
+    mmyTcpServer->deleteLater();
+
+    ClientNumber = 0;
+    ui->TcpClientNumberLabel->setText("已连接客户端数量：" + QString::number(ClientNumber));
+
     emit appLogMessage_signal("断开所有客户端的连接");
     ui->TCPServerListenPushButton->setEnabled(true);/*监听按键无效*/
     ui->TCPServerCloseListenPushButton->setEnabled(false);/*结束监听按键无效*/
