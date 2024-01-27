@@ -407,6 +407,11 @@ void myTcpSocket::cameraToServerDeal(QByteArray data)
             tcpConnectIsAlive = true;
             break;
         }
+        case CAMERA_TRY_SERVER_CHECK:                               /* 心跳包 */
+        {
+            sendTcpData(packTcpDataFrame(DEVICE_LABEL_SERVER,SERVER_TO_CLIENT,SERVER_CHECK_BACK,0,0));
+            break;
+        }
         case SET_CAMERA_DEVICE_FLAG:                                /* CAMERA角色设置 */
         {
             qDebug()<<"设置客户端为CAMERA标志";
@@ -423,7 +428,6 @@ void myTcpSocket::cameraToServerDeal(QByteArray data)
         }
         case TAKE_PICTURE_END:                                      /* 设备拍照,JPEG格式 */
         {
-            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;        /* 得到数据长度 */
             /* 保存图像 */
             /* 创建图片文件夹 */
             QString picName = QCoreApplication::applicationDirPath() + "/" + "照片";
@@ -444,23 +448,26 @@ void myTcpSocket::cameraToServerDeal(QByteArray data)
             picName += "/" + QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss") + ".jpeg";
             QFile *RecFile = new QFile(picName);
             RecFile->open(QFile::WriteOnly);
-            RecFile->write(data.mid(8,dataLen));
+            RecFile->write(tempPicData);
             RecFile->close();
             delete RecFile;
             break;
         }
-        case PICTURE_DATA_PACK:                                     /* 设备拍照,图像包数据,RGB格式 */
+        case JPEG_DATA_PACK_SIZE:
+        {
+            getJpegDataPackSize = (uint8_t)data.at(8) | (uint8_t)data.at(9)<<8 | (uint8_t)data.at(10)<<16 | (uint8_t)data.at(11)<<24;
+            tempPicDataLen = 0;
+            tempPicData.clear();
+            break;
+        }
+        case PICTURE_DATA_PACK:
         {
             uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
             tempPicData += data.mid(8,dataLen);
             tempPicDataLen += dataLen;
-            float percent = tempPicDataLen/3840000.0 * 100;
+            float percent = (float)tempPicDataLen/(float)getJpegDataPackSize * 100.0;
             QByteArray tempData = "接收进度:" + QByteArray::number(percent) + "%";
             emit appLogMessage_signal(tempData);
-            break;
-        }
-        case PICTURE_DATA_PACK_INDEX:
-        {
             break;
         }
         case TAKE_RGB_PICTURE_END:                                  /* 设备拍照,RGB格式 */

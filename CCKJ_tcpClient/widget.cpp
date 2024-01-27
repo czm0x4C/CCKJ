@@ -10,6 +10,7 @@
 #include <QString>
 #include <QDir>
 #include <QTime>
+#include <QMenu>
 
 #include <windows.h>
 #include <dbt.h>
@@ -64,14 +65,14 @@ void Widget::windowsInit()
     ui->imageSizeComboBox->addItem("QVGA(320*240)");                    /* 为图片大小添加大小选项 */
     ui->imageSizeComboBox->addItem("VGA(680*480)");
     ui->imageSizeComboBox->addItem("UXGA(1600*1200)");
-    ui->imageSizeComboBox->addItem("QSXGA(2560*1920)");
+    ui->imageSizeComboBox->addItem("QSXGA(2592*1940)");
     ui->imageSizeComboBox->setCurrentIndex(3);                          /* 设置当前默认选项 */
 
-    for(int i=0;i<60;i++)                                               /* 图片质量的选择窗口 */
+    for(int i=0;i<101;i++)                                               /* 图片质量的选择窗口 */
     {
         ui->imageQualityComboBox->addItem(QString::number(i));
     }
-    ui->imageQualityComboBox->setCurrentIndex(10);
+    ui->imageQualityComboBox->setCurrentIndex(100);
 
     ui->CloseTCPButton->setEnabled(false);                              /* 未连接时，关闭连接按键为不可用状态 */
     ui->disConnectDeviceButton->setEnabled(false);                      /* 断开连接相机按键不可用 */
@@ -113,9 +114,9 @@ void Widget::windowsInit()
     ui->hourTimingComboBox->clear();
     for(uint32_t i=0;i<24;i++)
     {
-        ui->hourTimingComboBox->addItem(QString::number(i+1));
+        ui->hourTimingComboBox->addItem(QString::number(i));
     }
-    ui->hourTimingComboBox->setCurrentIndex(currentHour-1);
+    ui->hourTimingComboBox->setCurrentIndex(currentHour);
 
     ui->minuteTimingComboBox->clear();
     for(uint32_t i=0;i<60;i++)
@@ -127,9 +128,9 @@ void Widget::windowsInit()
     ui->tcpHourTimingComboBox->clear();
     for(uint32_t i=0;i<24;i++)
     {
-        ui->tcpHourTimingComboBox->addItem(QString::number(i+1));
+        ui->tcpHourTimingComboBox->addItem(QString::number(i));
     }
-    ui->tcpHourTimingComboBox->setCurrentIndex(currentHour-1);
+    ui->tcpHourTimingComboBox->setCurrentIndex(currentHour);
 
     ui->tcpMinuteTimingComboBox->clear();
     for(uint32_t i=0;i<60;i++)
@@ -138,6 +139,14 @@ void Widget::windowsInit()
     }
     ui->tcpMinuteTimingComboBox->setCurrentIndex(currentMinute);
 
+    ui->pictureDirectionComboBox->addItem("正常");
+    ui->pictureDirectionComboBox->addItem("镜像");
+    ui->pictureDirectionComboBox->addItem("翻转");
+    ui->pictureDirectionComboBox->addItem("镜像翻转");
+
+    ui->binDownLoadPushButton->hide();          /* 下载固件按键隐藏 */
+    ui->takePictureTestModePushButton->hide();
+    ui->openMotoTestModePushButton->hide();     /* 测试模式下的相关按键隐藏 */
 
     //获取所有的控件，为窗口缩放做准备
     m_Widget = this->findChildren<QWidget*>(QString(), Qt::FindChildrenRecursively);
@@ -230,9 +239,9 @@ QByteArray Widget::setSerialPortStringDataFormat(unsigned char frameHead, unsign
 
     unsigned char sumcheck = 0;
     unsigned char addcheck = 0;
-    for(unsigned char i=0; i < frameData[3] + 4 ; i++)
+    for(unsigned char i=0; i < (uint8_t)frameData[3] + 4 ; i++)
     {
-        sumcheck += frameData[i]; //从帧头开始，对每一字节进行求和，直到DATA区结束
+        sumcheck += (uint8_t)frameData[i]; //从帧头开始，对每一字节进行求和，直到DATA区结束
         addcheck += sumcheck; //每一字节的求和操作，进行一次sumcheck的累加
     }
     frameData[frameDataLen + 4] = sumcheck;
@@ -438,7 +447,6 @@ void Widget::on_takePictureButton_clicked()
 void Widget::on_setSavePathButton_clicked()
 {
     QString selectDir = QFileDialog::getExistingDirectory();
-    qDebug() << selectDir;
     if (selectDir.isEmpty())
     {
         QMessageBox::warning(this, "警告!", "路径选择错误!");
@@ -766,8 +774,22 @@ void Widget::on_devicePushButton_clicked()
         connect(this,&Widget::openSerialPort_signal,serialPortTask,&SerialPortThread::OpenSerialPort,Qt::UniqueConnection);             /* 连接打开串口设备的槽函数 */
         connect(this,&Widget::closeSerialPort_signal,serialPortTask,&SerialPortThread::SerialPortClose,Qt::UniqueConnection);           /* 连接串口关闭处理槽函数 */
         connect(this,&Widget::sendSerialPortData,serialPortTask,&SerialPortThread::DataSend,Qt::UniqueConnection);                      /* 连接串口发送数据的槽函数 */
+        connect(this,&Widget::sendBinFileData_signal,serialPortTask,&SerialPortThread::sendBinFile,Qt::UniqueConnection);               /* 发送bin文件 */
+
         connect(serialPortTask,&SerialPortThread::OpenSerialPortOK_signal,this,&Widget::on_openSerialPortState,Qt::UniqueConnection);   /* 连接串口设备连接状态的处理槽函数 */
         connect(serialPortTask,&SerialPortThread::appLogMessage_signal,this,&Widget::on_showLogMessage,Qt::UniqueConnection);           /* 子线程输出log信息到主线程 */
+        connect(serialPortTask,&SerialPortThread::pictureData_signal,this,&Widget::on_showPicture,Qt::UniqueConnection);                /* 串口接收的图片显示到界面 */
+
+        connect(serialPortTask,&SerialPortThread::deviceIapState_signal,this,[=]()                                                      /* 设备处于IAP引导状态 */
+        {
+            ui->binDownLoadPushButton->show();
+            ui->binDownLoadPushButton->setText("固件下载");
+        });
+        connect(serialPortTask,&SerialPortThread::deviceAppState_signal,this,[=]()                                                      /* 设备处于APP正常运行状态 */
+        {
+            ui->binDownLoadPushButton->show();
+            ui->binDownLoadPushButton->setText("引导模式");
+        });
 
         QString portName = ui->deviceComboBox->currentText();
         if(portName.isEmpty() == true)
@@ -796,6 +818,8 @@ void Widget::on_devicePushButton_clicked()
         serialPortThread->deleteLater();
 
         serialPortTask->deleteLater();
+
+        ui->binDownLoadPushButton->hide();
 
         return;
     }
@@ -832,7 +856,7 @@ void Widget::on_writeDevicePushButton_clicked()
     QByteArray wifiPassWord = ui->wifiPasswordLineEdit->text().toLocal8Bit();       /* 获取WIFI密码 */
 
     QByteArray serverIp = ui->serverIpLineEdit->text().toLocal8Bit();               /* 获取服务器IP */
-    QByteArray serverPort = ui->serverPortLineEdit->text().toLocal8Bit();           /* 获取服务器PORT */
+    uint16_t serverPort = ui->serverPortLineEdit->text().toUShort();                /* 获取服务器PORT */
 
     QByteArray deviceId = ui->deviceIdSetLineEdit->text().toLocal8Bit();            /* 获取设置的相机ID */
 
@@ -863,10 +887,36 @@ void Widget::on_writeDevicePushButton_clicked()
     ledFlashBrightness   = ui->ledBrightnessLineEdit->text().toUShort();
     takePictureDelayTime = ui->takePictureDelayTimeLineEdit->text().toUShort();
 
+    switch (ui->pictureDirectionComboBox->currentIndex())
+    {
+        case 0:             /* 正常 */
+        {
+            emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_CAMERA_PICTURE_DIRECTION,0));
+            break;
+        }
+        case 1:             /* 镜像 */
+        {
+            emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_CAMERA_PICTURE_DIRECTION,1));
+            break;
+        }
+        case 2:             /* 翻转 */
+        {
+            emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_CAMERA_PICTURE_DIRECTION,2));
+            break;
+        }
+        case 3:             /* 镜像翻转 */
+        {
+            emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_CAMERA_PICTURE_DIRECTION,3));
+            break;
+        }
+        default:
+            break;
+    }
+
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CDM_WIFI_NAME                     ,wifiName));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_WIFI_PASSWORD                 ,wifiPassWord));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_IP                     ,serverIp));
-    emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT                   ,serverPort));
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SERVER_PORT                   ,serverPort));
     emit sendSerialPortData(setSerialPortStringDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_DEVICE_ID                     ,deviceId));
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_SIZE                  ,imageSize));
     emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_PICTURE_QUALITY               ,imageQuality));
@@ -1197,5 +1247,78 @@ void Widget::on_downLoadPictureSuccess()
 
     listmodel->setStringList(list);
     ui->listView->setModel(listmodel);
+}
+
+
+void Widget::on_testModePushButton_clicked()
+{
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
+    if(ui->testModePushButton->text() == "测试模式")
+    {
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_TEST_MODE,0));
+        ui->takePictureTestModePushButton->show();
+        ui->openMotoTestModePushButton->show();
+        ui->testModePushButton->setText("工作模式");
+    }
+    else if(ui->testModePushButton->text() == "工作模式")
+    {
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_SET_WORK_MODE,0));
+        ui->takePictureTestModePushButton->hide();
+        ui->openMotoTestModePushButton->hide();
+        ui->testModePushButton->setText("测试模式");
+    }
+}
+
+void Widget::on_takePictureTestModePushButton_clicked()
+{
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_TAKE_PICTURE_TEST_MODE,0));
+}
+
+
+void Widget::on_openMotoTestModePushButton_clicked()
+{
+    if(!isSerialPortOpen)
+    {
+        emit appLogMessage_signal("请检查串口是否打开");
+        return;
+    }
+    emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_OPEN_MOTO_TEST_MODE,0));
+}
+
+
+void Widget::on_binDownLoadPushButton_clicked()
+{
+    if(ui->binDownLoadPushButton->text() == "引导模式")
+    {
+        emit sendSerialPortData(setSerialPortUshortDataFormat(0xAA,SerialPortThread::frameAddress::PC,SerialPortThread::frameCmd::CMD_RUN_IAP,0));
+    }
+    else if(ui->binDownLoadPushButton->text() == "固件下载")
+    {
+        QString runPath = QCoreApplication::applicationDirPath();//获取项目的根路径
+        QString binFilePath = QFileDialog::getOpenFileName(this,QStringLiteral("选择文件"),runPath,"Bin Files(*.bin)",nullptr,QFileDialog::DontResolveSymlinks);
+
+        QFile file(binFilePath);
+
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            qDebug() << "无法打开文件：" << file.errorString();
+            return ;
+        }
+
+        QByteArray data = file.readAll(); // 读取文件数据到 QByteArray
+
+        emit sendBinFileData_signal(data);
+
+        file.close();
+    }
 }
 

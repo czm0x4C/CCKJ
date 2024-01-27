@@ -26,7 +26,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="widget">
     <attribute name="title">
@@ -672,7 +672,7 @@
        <x>10</x>
        <y>10</y>
        <width>431</width>
-       <height>331</height>
+       <height>371</height>
       </rect>
      </property>
      <property name="title">
@@ -1102,6 +1102,81 @@
       </property>
       <property name="text">
        <string>重启设备</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="takePictureTestModePushButton">
+      <property name="geometry">
+       <rect>
+        <x>40</x>
+        <y>330</y>
+        <width>75</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>拍照</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="openMotoTestModePushButton">
+      <property name="geometry">
+       <rect>
+        <x>140</x>
+        <y>330</y>
+        <width>75</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>开水泵</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="binDownLoadPushButton">
+      <property name="geometry">
+       <rect>
+        <x>340</x>
+        <y>330</y>
+        <width>75</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>引导模式</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="testModePushButton">
+      <property name="geometry">
+       <rect>
+        <x>240</x>
+        <y>330</y>
+        <width>75</width>
+        <height>24</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>测试模式</string>
+      </property>
+     </widget>
+     <widget class="myComboBox" name="pictureDirectionComboBox">
+      <property name="geometry">
+       <rect>
+        <x>290</x>
+        <y>120</y>
+        <width>133</width>
+        <height>22</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_29">
+      <property name="geometry">
+       <rect>
+        <x>220</x>
+        <y>120</y>
+        <width>67</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>图片方向：</string>
       </property>
      </widget>
     </widget>

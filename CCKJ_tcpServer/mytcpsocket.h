@@ -56,6 +56,7 @@ private:
         SET_CAMERA_DEVICE_ID,               /* 设置相机的ID */
         GET_ONLINE_CAMERA_DEVICE_ID,        /* 请求所有连接的camera设备ID */
         TAKE_PICTURE,                       /* 拍照命令 */
+        JPEG_DATA_PACK_SIZE,                /* JPEG数据包 */
         TAKE_PICTURE_END,                   /* 拍照结束 */
         TAKE_PICTURE_ERROR,                 /* 拍照错误 */
         CAMERA_ID,                          /* 相机ID */
@@ -84,9 +85,9 @@ private:
         OPEN_MOTO_SUCCESS_CMD,              /* 打开成功反馈 */
         OPEN_MOTO_FAIL_CMD,                 /* 打开失败反馈 */
         PICTURE_DATA_PACK,                  /* 图像数据包 */
-        PICTURE_DATA_PACK_INDEX,			/* 图像数据包编号 */
         TAKE_RGB_PICTURE_END,               /* 拍摄RGB图片结束 */
-        CALIBRATION_TIME,                   /* 校准时间 */
+        CAMERA_TRY_SERVER_CHECK,            /* 服务器检测 */
+        SERVER_CHECK_BACK,                  /* 服务器检测响应 */
         SET_LIED_BRIGHTNESS_CMD,
         SET_TAKE_PICTURE_DELAY_TIME_CMD
     };
@@ -114,6 +115,8 @@ private:
     QByteArray tempPicData;
 
     uint32_t tempPicDataLen = 0;        /* 临时存放图片的大小 */
+
+    uint32_t getJpegDataPackSize = 0;   /* 接收的JPEG图片大小 */
 
     void readTcpData();
 

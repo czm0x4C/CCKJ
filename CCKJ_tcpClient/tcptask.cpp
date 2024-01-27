@@ -266,21 +266,24 @@ void tcpTask::serverToClient(QByteArray data)
 
 void tcpTask::cameraToPcDeal(QByteArray data)
 {
-    qDebug() << "接收的data size = " << data.size();
     switch((uint8_t)data.at(3))
     {
+        case JPEG_DATA_PACK_SIZE:
+        {
+            getJpegDataPackSize = (uint8_t)data.at(8) | (uint8_t)data.at(9)<<8 | (uint8_t)data.at(10)<<16 | (uint8_t)data.at(11)<<24;
+            tempPicDataLen = 0;
+            tempPicData.clear();
+            emit appLogMessage_signal("图片大小为" + QByteArray::number(getJpegDataPackSize));
+            break;
+        }
         case PICTURE_DATA_PACK:
         {
             uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
             tempPicData += data.mid(8,dataLen);
             tempPicDataLen += dataLen;
-            float percent = tempPicDataLen/3840000.0 * 100;
+            float percent = (float)tempPicDataLen/(float)getJpegDataPackSize * 100.0;
             QByteArray tempData = "接收进度:" + QByteArray::number(percent) + "%";
             emit appLogMessage_signal(tempData);
-            break;
-        }
-        case PICTURE_DATA_PACK_INDEX:
-        {
             break;
         }
         case TAKE_RGB_PICTURE_END:
@@ -304,9 +307,8 @@ void tcpTask::cameraToPcDeal(QByteArray data)
         }
         case TAKE_PICTURE_END:
         {
-            uint32_t dataLen = (uint8_t)data.at(4) | (uint8_t)data.at(5)<<8 | (uint8_t)data.at(6)<<16 | (uint8_t)data.at(7)<<24;
-            emit pictureData_signal(data.mid(8,dataLen));
-            sendTcpData(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SAVE_PC_PICTURE,dataLen,data.mid(8,dataLen)));
+            sendTcpData(packTcpDataFrame(DEVICE_LABEL_PC,PC_TO_SERVER,SAVE_PC_PICTURE,tempPicData.size(),tempPicData));/* 向服务器转发图片数据 */
+            emit pictureData_signal(tempPicData);           /* 主界面预览 */
             QByteArray tempData = "接收到图片完成";
             emit appLogMessage_signal(tempData);
             break;
